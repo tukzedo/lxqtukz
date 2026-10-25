@@ -186,22 +186,33 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 			- Skips anything requiring an external host.
 		- No flags by default does everything.
 		- The other existing flags can stay.
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- 2026-10-24: the CICD reset's shared flags replace this list. The default run, under about an hour, `--quick` in about 10 minutes, `--long` with `--slow` as another name, `--leakcheck`, `--no-leakcheck`, `--backlog-run-quick [<area>...]`, `--backlog-run-full`, `--merge-gate`, `--no-container`, `--no-remote`, `--no-sync`, `--keep-temp`, `--list`, `--help`, `--quiet`, and `--message`.
+			- `--gate` turns into another name for `--backlog-run-quick`, and `--ci` for `--merge-gate`, which supersedes the rename above.
+			- The backlog and merge gate runs never dogfood, publish, commit, push, install, sync, rewrite a tracked file, or prompt. A round never dogfoods.
+			- The pre-push hook runs `--merge-gate` on a push to `main` only. A push to `dev` or a feature branch isn't gated, and a docs-only push to `main` skips it, with the docs paths in one place the hook reads.
 
 - Pre-next-cut: Builds clean up stale artifacts and side effects
 	- ID: 2026101911150202
 	- Type: Enhancement
 	- Status: Queued
-	- Priority|Severity: Avg
+	- Priority|Severity: High
 	- Opened: 20261019-111500
 	- Opened by: t00mietum
 	- Requirements:
 		- Verify or ensure that builds clean up *stale* artifacts and side effects when they're done: caches, container cruft, tmp files, etc.
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- 2026-10-24: the CICD reset's container cleanup rules apply. Temp folders are in 2026102416315764.
+			- Every container, image, and volume gets `dev.project=lxqtukz` and `dev.run=<run folder name>`, and containers are named `lxqtukz-<run folder name>-<step>`.
+			- The run's containers are removed by label at its end, on failure and Ctrl+C too.
+			- Older image tags go once a newer one has passed, keeping the current tag and the one before it. Then `docker builder prune -f --filter until=168h`.
+			- Nothing without the project's label is touched. The end of the run says what it removed and about what that freed.
 
 - Pre-next-cut: CICD `--leakcheck` and `--no-leakcheck`
 	- ID: 2026101911150204
 	- Type: Enhancement
 	- Status: Queued
-	- Priority|Severity: Avg
+	- Priority|Severity: High
 	- Opened: 20261019-111500
 	- Opened by: t00mietum
 	- Parent ID: 2026101714414452
@@ -210,6 +221,116 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 		- CICD has both `--leakcheck` and `--no-leakcheck`.
 			- `--leakcheck` is useful to add back in for `--quick`.
 			- `--no-leakcheck` is useful to exclude from the default, or with `--quiet`.
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- 2026-10-24: per the CICD reset, leak checks come in 3 lengths by measured time. Fast ones run in every run, `--quick` included. Slow ones run in the default run and `--long`, and ones that take hours only in `--long`. `--leakcheck` adds every one to any run, and `--no-leakcheck` takes every one out, fast ones included.
+
+- CICD reset: containers
+	- ID: 2026102416315759
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-163157
+	- Opened by: t00mietum
+	- Parent ID: 2026101221490203
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- The build and the test scripts already run in the pinned Debian 13 images. What's left is a missing docker.
+		- A missing docker never fails a run. A step that can run safely on the host does, with one line, and the rest show as `SKIP`. `build.bash` stops with an error now.
+		- `--no-container` runs on the host on purpose, as the shared name for `build.bash --here`.
+
+- CICD reset: CPU and priority
+	- ID: 2026102416315760
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-163157
+	- Opened by: t00mietum
+	- Parent ID: 2026101221490203
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- `build.bash` and `settings.bash` take half the CPUs. Add the busy check: a quarter when the 1-minute load is over half the CPU count, checked at the start and before each step. The heavy steps, such as the leak checks, use a quarter, busy or not.
+		- The counts are worked out in one place for every script, and passed to every tool that runs in parallel.
+		- Everything runs under `nice -n 19`, plus `ionice -c 3`. Containers get `--cpus` and `--cpu-shares 256`, and `nice` inside.
+
+- CICD reset: step output
+	- ID: 2026102416315761
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-163157
+	- Opened by: t00mietum
+	- Parent ID: 2026101221490203
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Each step prints the shared lines: a 79 character rule, `[ YYYYmmDD-HHMMSS.NN: Step 1 of 9; Starting Build ]`, its output, then `PASS Build` or `FAIL Build` in the same form. Now the scripts print a section title under a 74 character rule.
+		- Steps turned off aren't counted, and the first section lists them with the flag or reason.
+
+- CICD reset: a test for every Done item
+	- ID: 2026102416315762
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-163157
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- 4 Done items have no `Test case` row: branch protection, the installer and updater, liblxqt patch 0001, and the repository and pins. Each gets its test's ID, or a few words on why there's none.
+		- Add the missing tests where one could exist and would make sense.
+
+- CICD reset: test IDs
+	- ID: 2026102416315763
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261024-163157
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Every check in the test scripts and every Rust test gets a unique ID, from when it was first committed: whole minutes since 2000-01-01 UTC, in lower-case Crockford base 32. 2 that come out the same take the next free minute, and an ID never changes.
+		- The run prints one line per test, such as `PASS decp8 empty input round-trips`, or `FAIL` or `SKIP`. Now the scripts print `ok:` and `FAIL:` with the name only.
+		- `Test case` rows in the backlog name the IDs.
+
+- CICD reset: temp files and safe removal
+	- ID: 2026102416315764
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261024-163157
+	- Opened by: t00mietum
+	- Related IDs: 2026101911150202
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- The test scripts make their folders under `/tmp` with `mktemp`. Each run's folder is `<HOST_TEMP>/lxqtukz/<YYYYmmDD-HHMMSS>_<NNN>/` instead, made with a plain `mkdir` and a counter, with `TMPDIR`, `TEMP`, and `TMP` pointed into it.
+		- A trap removes it at the end, on failure and Ctrl+C too. `--keep-temp` keeps it and prints its path.
+		- Each run writes `run.pid` there, and removes the project's own folders older than 2 days whose process is gone.
+		- Every `rm -rf` in the scripts goes through a copy of the shared guard. One that removes something outside a temp root, such as the prefix or the installer's version folders, uses a guard that names the one parent it may remove under. The file list is in the private notes.
+
+- CICD reset: version line
+	- ID: 2026102416315765
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261024-163157
+	- Opened by: t00mietum
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- `lxqtukz-settings --version` and About print `lxqtukz-settings v<version> build <build>`, then the copyright line. Now it prints `lxqtukz-settings <version>`.
+		- The build number is the commit's time in minutes since 2000, in lower-case Crockford base 32. The version stays in the `version` file. A non-release build adds its date after it, in the viewer's time zone.
+
+- CICD reset: CICD process gaps
+	- ID: 2026102416315766
+	- Type: Task
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261024-163157
+	- Opened by: t00mietum
+	- Parent ID: 2026101221490203
+	- Related IDs: 2026101221490220
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Lint output, shellcheck and clippy, rotated into `cicd/artifacts/lint/`, with a `--check` that prints only what's new.
+		- Lint and audit tools pinned in one place the scripts read.
+		- Remote sync first, before anything is built.
 
 - Milestone 1 - First Debian build
 	- ID: 2026101221490200
@@ -338,6 +459,7 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 	- Opened by: t00mietum
 	- Parent ID: 2026101221490203
 	- Note: the pipeline and pre-push hook should run the content scrub only if it's present.
+	- 2026-10-24: the pre-push merge gate here follows 2026101911150200, per the CICD reset: `--merge-gate`, on a push to `main` only.
 
 - Publish v0.1.0-alpha1 as a prerelease, and install it with `--channel dev` on a clean Debian 13.
 	- ID: 2026101221490221
@@ -537,6 +659,7 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 		- Each new gate is watched to fail before it's trusted, by planting the leak it's meant to catch and seeing it go red.
 		- Known-advisory scans run on every full run: `cargo deny check advisories` or `cargo audit`, `govulncheck`, and `pip-audit`. They cover third-party code only, which is the point.
 	- Note: Upstream LXQt and Wayfire are built from source, so they count as third-party code here.
+	- 2026-10-24: 2026101911150204 supersedes the `--leakcheck` lines here and in the children, per the CICD reset. Slow leak checks run in the default run too.
 
 - Leak, memory, and static checks in CI/CD, for Rust
 	- ID: 2026101714414455
