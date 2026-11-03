@@ -170,6 +170,20 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 	- Verified: 20261016, a distro-style `lxqt-desktop.desktop` in `/etc/xdg/autostart` in the test container starts its pcmanfm-qt in the session, and the new check catches it.
 	- Swept: every pcmanfm-qt and libfm-qt name in the repo and in the built prefix. Left alone, since nothing in the session runs them: lxqt-globalkeys' Ctrl+Alt+E (X11 only), lxqt-menu-data's entry for pcmanfm-qt's desktop settings (skipped when missing), lxqt-config's man page, and the other compositors' configs that lxqt-wayland-session installs.
 
+- The planned container cleanup prunes every project's docker build cache
+	- ID: 2026110311291918
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: High
+	- Opened: 20261103-112919
+	- Opened by: JC
+	- Related IDs: 2026101911150202, common 2026110311291900
+	- Incorrect behavior: Item 2026101911150202 plans `docker builder prune -f --filter until=168h` at the end of a run, from common's `Cleanup after a run` rule. That prunes docker's default builder, which every project shares, so it would drop any other project's cache once it's a week unused.
+	- Expected behavior: Leave the prune out of the cleanup. Docker trims the cache itself on b23, through `builder.gc` in `/etc/docker/daemon.json`. Cache unused for a week goes first, then the rest is cut to 120 GB, or further when the disk is under 10% free, but never below 20 GB. The rest of the cleanup item stands.
+	- Decisions:
+		- Don't move to a buildx builder of the project's own instead. shcl tried that on 2026-11-02. A cold build of a 2 GB image took 299 s against 266 s on the default builder, and the builder kept a second 3 GB copy of the layers for a week. shcl is going back to the default builder. (JC, me)
+	- Estimated effort: Low
+
 - Pre-next-cut: Updates to CICD script flags (do next)
 	- ID: 2026101911150200
 	- Type: Enhancement
