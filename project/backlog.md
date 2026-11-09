@@ -121,6 +121,7 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 	- Commit: e39c62b
 	- Test case: `cicd/session.bash`, its Lock screen checks. They fail on the release built before the fix: no swayidle, no gtklock, and lxqt-leave left waiting. They pass after. Taking out the already-locked guard, or skipping the wrong password, turns them red.
 	- Verified: headless in the test container, on a release staged from this branch: the lock key locks in about half a second, the lock screen shows the password box, a wrong password shows "Login failed" and stays locked, and locking again while locked is quiet. The NixOS module evaluates, with gtklock 4.0.0, swayidle 1.9.0, the PAM service and the module path.
+	- Verified: 20261109, a full `cicd/build.bash` from clean, then `cicd/session.bash` on its release. All 18 checks passed, the lock screen ones included. The real login is still to do.
 	- Swept: every LXQt way to lock goes through the one lock command: lxqt-leave (lock key, leave dialog, panel), lxqt-session (before sleep, logind's lock), lxqt-runner, and lxqt-powermanagement's idle action. lxqt-globalkeys' Ctrl+Alt+L and xscreensaver are X11-only and don't start in this session.
 
 - The backlight helper's polkit action is in the prefix, where polkit never reads it. Brightness keys may ask for an admin password.
@@ -144,6 +145,7 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 	- Test case: `cicd/installer.bash`, its polkit checks. They fail with the installer and release from before the fix: no link, and pkexec falls back to the generic action. They pass after. A release with the upstream id fails 4 of them, and linking every action without the name check fails 2.
 	- Verified: 20261015, `cicd/installer.bash` passed on a release staged from this branch. pkexec picks our action for the helper the session runs, and an active session needs no password for it. Debian's helper keeps its own action. A session on an older version keeps its action after an update. Prune and uninstall leave no link behind.
 	- Verified: 20261015, the NixOS module evaluates with polkit on and the system packages' `share/polkit-1` linked. nixpkgs' liblxqt runs the helper by its full path, which matches the action. Not built.
+	- Verified: 20261109, a full `cicd/build.bash` from clean, then `cicd/installer.bash` (23 checks) and `cicd/session.bash` (18 checks) on its release. All passed. The real login is still to do.
 	- Swept: the action is the only polkit file in the prefix. The installer's other links into system dirs go away on uninstall too, and `cicd/installer.bash` checks that no link into `/opt/lxqtukz` is left anywhere.
 
 - Drop pcmanfm-qt from the build. Find what still needs libfm-qt, and what shows desktop icons until tukzdesk.
@@ -168,6 +170,7 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 	- Test case: `cicd/session.bash`, its "File manager and desktop" checks. On the release from before the change, 3 fail: the prefix and `wayfire.ini` name pcmanfm-qt, `pcmanfm-qt --desktop` runs, and Super+P doesn't open the default file manager. They pass on a release staged from this branch.
 	- Verified: 20261016, `cicd/session.bash` passed every check on a prefix staged from this branch with pcmanfm-qt's files taken out, which is what a clean build gives. Not a full build.
 	- Verified: 20261016, a distro-style `lxqt-desktop.desktop` in `/etc/xdg/autostart` in the test container starts its pcmanfm-qt in the session, and the new check catches it.
+	- Verified: 20261109, a full `cicd/build.bash` from clean, then `cicd/session.bash` on its release. All checks passed, the "File manager and desktop" ones included. Only the 2 questions are left.
 	- Swept: every pcmanfm-qt and libfm-qt name in the repo and in the built prefix. Left alone, since nothing in the session runs them: lxqt-globalkeys' Ctrl+Alt+E (X11 only), lxqt-menu-data's entry for pcmanfm-qt's desktop settings (skipped when missing), lxqt-config's man page, and the other compositors' configs that lxqt-wayland-session installs.
 
 - The planned container cleanup prunes every project's docker build cache
@@ -630,21 +633,6 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 	- Opened: 20261012-214902
 	- Opened by: t00mietum
 
-- `cicd/upstream.bash`: `status --fetch` to update mirrors before comparing, and a 1-line summary for the merge gate.
-	- ID: 2026101221490230
-	- Type: Enhancement
-	- Status: Waiting on signoff
-	- Opened: 20261012-214902
-	- Opened by: t00mietum
-	- Progress log:
-		- 20261015: `status` reads the newest tag from the mirror, so it's offline and as new as the last fetch. With no mirror it still asks upstream. `--fetch` fetches first. A summary line ends the table, and `--summary` prints only that line. The gate itself is 2026101221490220.
-	- Decisions:
-		- The summary is informational: `status` still exits 0 when components are behind or a work tree changed. The gate decides what fails.
-	- Verified: 20261015, on the real mirrors with no fetch, the table matches the old script's line for line, through libxkbcommon and the rest. `cicd/tooling.bash upstream` passes on local mirrors: a new upstream tag shows only after `--fetch`, prefixed tags and pre-releases, "?" for a component with no matching tag, the no-mirror fallback, and `--fetch` refused for other subcommands. It fails on the old script, with `--fetch` ignored, and with the tag prefix dropped as before 2026101513523151.
-	- Test case: `cicd/tooling.bash upstream`.
-	- Related IDs: 2026101513523151, 2026101221490220
-	- Branch: cicdbits
-
 - lxqt-wayland-session: `lxqt-wayfire.ini` hardcodes `/usr/share/lxqt/...`. Send upstream a change that installs it with the configured paths.
 	- ID: 2026101221490231
 	- Type: Task
@@ -796,7 +784,24 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 	- Commit: bd44d52
 	- Test case: `cicd/installer.bash`, its timer checks. They fail with the old installer: the timer's link is gone, and enabling it says the unit doesn't exist. They pass after.
 	- Verified: 20261015, `cicd/installer.bash`, with unit links made offline: both units stay linked through installs and an update with `AUTO_UPDATE=no`, the timer can be enabled afterward, and the next install turns it off again. Not tried against a running systemd.
+	- Verified: 20261109, `cicd/installer.bash` passed its timer checks on a release from a full build. Not tried against a running systemd yet.
 	- Swept: the only other `systemctl disable` is in `--uninstall`, which removes both links anyway.
+
+- `cicd/upstream.bash`: `status --fetch` to update mirrors before comparing, and a 1-line summary for the merge gate.
+	- ID: 2026101221490230
+	- Type: Enhancement
+	- Status: Done
+	- Opened: 20261012-214902
+	- Opened by: t00mietum
+	- Progress log:
+		- 20261015: `status` reads the newest tag from the mirror, so it's offline and as new as the last fetch. With no mirror it still asks upstream. `--fetch` fetches first. A summary line ends the table, and `--summary` prints only that line. The gate itself is 2026101221490220.
+	- Decisions:
+		- The summary is informational: `status` still exits 0 when components are behind or a work tree changed. The gate decides what fails.
+	- Verified: 20261015, on the real mirrors with no fetch, the table matches the old script's line for line, through libxkbcommon and the rest. `cicd/tooling.bash upstream` passes on local mirrors: a new upstream tag shows only after `--fetch`, prefixed tags and pre-releases, "?" for a component with no matching tag, the no-mirror fallback, and `--fetch` refused for other subcommands. It fails on the old script, with `--fetch` ignored, and with the tag prefix dropped as before 2026101513523151.
+	- Verified: 20261109, `cicd/tooling.bash upstream` passes again, and `status --summary` gave the right line on the real mirrors before and after a patch queue apply.
+	- Test case: `cicd/tooling.bash upstream`.
+	- Related IDs: 2026101513523151, 2026101221490220
+	- Branch: cicdbits
 
 - Release manifests say the commit is `unknown`. Inside the build container, git refuses the repo, since it belongs to another user.
 	- ID: 2026101421433386
