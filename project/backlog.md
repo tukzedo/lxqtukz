@@ -316,6 +316,19 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 		- Lint and audit tools pinned in one place the scripts read.
 		- Remote sync first, before anything is built.
 
+- Tukzedo-Linux, LXQtukz, and tukzdesk should use shcl for config files (latest is v3.0.0-beta1). Named *.shcl.
+	- ID: 2026111015271654
+	- Type: Task
+	- Status: Queued
+	- Opened: 20261110-152716
+	- Opened by: t00mietum
+	- Related IDs: 2026111015271653 in tukzedo-linux
+	- Requirements:
+		- Config files our own code reads or writes. A file whose format another program sets stays as it is: LXQt's `.conf` files, `wayfire.ini` and `gtklock.ini`.
+	- Note: here that's `update.conf`, read by `install.bash` and `lxqtukz-update`. `install.bash` runs from `curl` with nothing beside it, so it needs its own reader.
+	- Note: the settings app's `settings_ui.shcl` is shcl already, but pinned to a dev branch commit. Move the pin to v3.0.0-beta1.
+	- Note: tukzdesk isn't started yet. Its config starts out as shcl.
+
 - Milestone 1 - First Debian build
 	- ID: 2026101221490200
 	- Type: Task
