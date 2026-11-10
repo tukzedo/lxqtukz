@@ -225,7 +225,7 @@ export WAYFIRE_SOCKET="${_WAYFIRE_SOCKET}"
 export WAYLAND_DISPLAY="$(find "${XDG_RUNTIME_DIR}" -maxdepth 1 -type s -name 'wayland-*' -printf '%f\n' | head -n1 || true)"
 fKeys(){ python3 -I "${KEYS}" "$@" >/dev/null 2>&1; }
 fWaitFor fKeys shift || fDie "stipc did not load; check the plugins line in ${userIni}"
-## Two plugins on one key means only one of them ever gets it. Super+E was
+## When 2 plugins share a key, only one of them gets it. Super+E was
 ## both expo and the file manager, and the overview won.
 dupKeys="$(awk '
 	/^\[/ { sec = $0; next }
