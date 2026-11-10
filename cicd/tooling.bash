@@ -11,7 +11,8 @@
 ##	              without a prefix, --fetch, --summary, no-mirror fallback
 ##	    dogfood   build.bash dogfood with docker, sudo, the installer and the
 ##	              updater replaced by stubs that log what they were asked:
-##	              same version, other version, none installed, in use
+##	              same version, other version, none installed, in use,
+##	              and settings.bash dogfood after each
 ##	- Syntax: cicd/tooling.bash [upstream] [dogfood]
 ##	History: At bottom of script.
 
@@ -128,14 +129,14 @@ fStage_dogfood(){
 	grep -qxF "DOGFOOD_ROOT=\"${opt}\"" "${repo}/cicd/build.bash" || fDie "build.bash has no DOGFOOD_ROOT line to point at the scratch dir"
 
 	local stub
-	for stub in install.bash cicd/upstream.bash; do
+	for stub in install.bash cicd/upstream.bash cicd/settings.bash; do
 		printf '#!/usr/bin/env bash\necho "%s $*" >> "%s"\n' "${stub##*/}" "${log}" > "${repo}/${stub}"
 	done
 	printf '#!/usr/bin/env bash\necho "lxqtukz-update $*" >> "%s"\n' "${log}" > "${stubs}/lxqtukz-update"
 	printf '#!/usr/bin/env bash\necho "docker $1" >> "%s"\n[[ "$1" != run || -z "${DOCKER_RUN_FAILS:-}" ]]\n' "${log}" > "${stubs}/docker"
 	## Only the in-use check is run for real; it reads /proc.
 	printf '#!/usr/bin/env bash\necho "sudo ${1##*/} ${2:-}" >> "%s"\n[[ "$1" != sh ]] || exec "$@"\n' "${log}" > "${stubs}/sudo"
-	chmod 755 "${repo}/install.bash" "${repo}/cicd/upstream.bash" "${stubs}"/*
+	chmod 755 "${repo}/install.bash" "${repo}/cicd/upstream.bash" "${repo}/cicd/settings.bash" "${stubs}"/*
 
 	fActive(){ rm -rf "${opt}"; [[ -z "${1:-}" ]] && return 0; mkdir -p "${opt}/versions/$1/bin"; ln -sfn "versions/$1" "${opt}/current"; }
 	## Prints the stub log, then the script's exit status.
@@ -145,22 +146,22 @@ fStage_dogfood(){
 		PATH="${stubs}:${PATH}" "${repo}/cicd/build.bash" "$@" > "${run}/dogfood/out" 2>&1 || rc=$?
 		cat "${log}"; echo "rc=${rc}"
 	}
-	local install="sudo install.bash -y" check="sudo sh -c" uninstall="lxqtukz-update --uninstall -y"
+	local install="sudo install.bash -y" check="sudo sh -c" uninstall="lxqtukz-update --uninstall -y" settings="settings.bash dogfood"
 	local start=$'docker build\nupstream.bash apply\ndocker run'
 
 	fActive ""
 	out="$(fDogfood dogfood)"
 	fHas "not installed: installs" "${out}" "${install}"
 	fHas "not installed: no uninstall" "${out}" ! "${uninstall}"
-	fSame "not installed: build first, then install" "${out}" "${start}"$'\n'"${install}"$'\nrc=0'
+	fSame "not installed: build first, then install" "${out}" "${start}"$'\n'"${install}"$'\n'"${settings}"$'\nrc=0'
 
 	fActive "${version}"
 	out="$(fDogfood dogfood)"
-	fSame "same version: uninstall, then install" "${out}" "${start}"$'\n'"${check}"$'\n'"${uninstall}"$'\n'"${install}"$'\nrc=0'
+	fSame "same version: uninstall, then install" "${out}" "${start}"$'\n'"${check}"$'\n'"${uninstall}"$'\n'"${install}"$'\n'"${settings}"$'\nrc=0'
 
 	fActive "0.0.1"
 	out="$(fDogfood dogfood)"
-	fSame "other version: installs over it" "${out}" "${start}"$'\n'"${install}"$'\nrc=0'
+	fSame "other version: installs over it" "${out}" "${start}"$'\n'"${install}"$'\n'"${settings}"$'\nrc=0'
 
 	fActive "${version}"
 	mv "${stubs}/lxqtukz-update" "${run}/dogfood/lxqtukz-update"
@@ -174,13 +175,15 @@ fStage_dogfood(){
 	sleep 0.3
 	out="$(fDogfood dogfood)"
 	kill "${pid}" 2>/dev/null || true; wait "${pid}" 2>/dev/null || true
-	fSame "same version in use: skipped" "${out}" "${start}"$'\n'"${check}"$'\nrc=0'
+	fSame "same version in use: install skipped, settings still copied" "${out}" "${start}"$'\n'"${check}"$'\n'"${settings}"$'\nrc=0'
 
 	fActive ""
 	out="$(fDogfood)"
 	fHas "not named: no install" "${out}" ! "${install}"
+	fHas "not named: no settings copy" "${out}" ! "${settings}"
 	out="$(DOCKER_RUN_FAILS=1 fDogfood dogfood)"
 	fHas "failed build: no install" "${out}" ! "${install}"
+	fHas "failed build: no settings copy" "${out}" ! "${settings}"
 	out="$(fDogfood settings dogfood)"
 	fSame "refused with a component list" "${out}" "rc=1"
 	out="$(fDogfood --here dogfood)"
@@ -189,6 +192,7 @@ fStage_dogfood(){
 	out="$(fDogfood dogfood)"
 	fHas "no release: no install" "${out}" ! "${install}"
 	fHas "no release: fails" "${out}" "rc=1"
+	fHas "no release: no settings copy" "${out}" ! "${settings}"
 }
 
 
@@ -199,3 +203,4 @@ fEcho "done: ${stages[*]}"
 
 ##	History:
 ##		- 2026-10-15: Created.
+##		- 2026-11-10: dogfood checks the settings.bash dogfood call.

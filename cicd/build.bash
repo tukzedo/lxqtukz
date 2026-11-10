@@ -24,6 +24,8 @@
 ##	                  install.bash --from. The same version as the one installed
 ##	                  is uninstalled first, since the installer skips a version
 ##	                  it is already on. Needs sudo, so it only runs when named.
+##	                  Then settings.bash dogfood copies the settings app to
+##	                  ~/.local/bin.
 ##	History: At bottom of script.
 
 ##	Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
@@ -148,6 +150,8 @@ if ((! here)); then
 	((dogfood)) || exec "${inContainer[@]}"
 	"${inContainer[@]}"
 	fStage_dogfood
+	## Its own copy in ~/.local/bin, so it runs even when the install was skipped.
+	"${REPO_ROOT}/cicd/settings.bash" dogfood
 	exit 0
 fi
 
@@ -297,3 +301,4 @@ ls -l "${ARTIFACTS}" | sed 's/^/  /'
 ##		- 2026-10-14: Prefix kept in work/prefix/, so a partial build can stage.
 ##		- 2026-10-15: The host reads the commit for the manifest.
 ##		- 2026-10-15: dogfood stage.
+##		- 2026-11-10: dogfood runs settings.bash dogfood too.

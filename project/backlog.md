@@ -21,17 +21,6 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template). A milestone is a Task, and its items point to it with Parent ID.
 
-- A distro's pcmanfm-qt starts its own desktop in an LXQtukz session
-	- ID: 2026111013575300
-	- Type: Task
-	- Status: Waiting for answers
-	- Priority|Severity: Low
-	- Opened: 20261110-135753
-	- Opened by: t00mietum
-	- Related IDs: 2026101509181628
-	- Note: a distro's pcmanfm-qt has its own autostart entry in `/etc/xdg/autostart`, which the session reads first. So on a box with one, its desktop icons show. tukzedo Linux has no pcmanfm-qt, so this only matters on other distros.
-	- Need to work out ambiguities: should the session hide that entry, or leave the distro's desktop alone? Hiding it needs a session change, such as a patch to lxqt-session.
-
 - Paste randomly stops working in terminals. QTerminal and SilkTerm. (Critical.)
 	- ID: 2026101417551800
 	- Type: Bug
@@ -768,6 +757,7 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 	- Progress log:
 		- 20261015: done by hand once. LXQtukz reinstalled in `/opt/lxqtukz` from the 14:24 build, and `cicd/settings.bash dogfood` put the settings app in `~/.local/bin`. The pipeline step itself is still to do.
 		- 20261015: `cicd/build.bash dogfood` does a full build, then installs it with `install.bash -y --from`. The same version as the installed one gets `lxqtukz-update --uninstall -y` first. Any other version installs over it. It skips the reinstall while a session runs that version. The settings app stays with `cicd/settings.bash dogfood`.
+		- 20261110: `cicd/build.bash dogfood` runs `cicd/settings.bash dogfood` after the install, and also when the install is skipped for a session in use. (JC)
 	- Opened: 20261014-185837
 	- Opened by: t00mietum
 	- Parent ID: 2026101221490203
@@ -775,6 +765,7 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 		- Off unless named, since it needs sudo. Refused with a component list or `--here`, since only a full build writes a release, and `--here` builds straight into `/opt/lxqtukz`.
 	- Verified: 20261015, `cicd/tooling.bash dogfood` passes, with sudo, docker, the installer and the updater stubbed. It checks the command order for not installed, same version, other version, same version in use, and no `lxqtukz-update` on PATH. Also no install after a failed build, and the refusals. With the uninstall line taken out, the same-version check fails.
 	- Verified: 20261109 and 20261110, `cicd/build.bash dogfood` on this box, twice. Each did a full build, uninstalled the same version, installed the new release with `install.bash -y --from`, and apt added what the deps list named.
+	- Verified: 20261110, `cicd/tooling.bash dogfood` passes 16 checks, with the settings copy after each install, after a skipped install, and never after a failed build or with no release. Without the new call, 4 of them fail. The real `cicd/settings.bash dogfood` compared the build with `~/.local/bin/lxqtukz-settings` and found it current.
 	- Test case: `cicd/tooling.bash dogfood`.
 	- Branch: cicdbits
 
@@ -1046,6 +1037,19 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 	- Verified: 20261014, `cicd/session.bash` wallpaper check: swaybg runs with the image in the prefix.
 	- Acceptance signoff: Self-closed: intent clear, test passes.
 	- Closed: 20261014-225457
+
+- A distro's pcmanfm-qt starts its own desktop in an LXQtukz session
+	- ID: 2026111013575300
+	- Type: Task
+	- Status: Deferred
+	- Priority|Severity: Low
+	- Opened: 20261110-135753
+	- Opened by: t00mietum
+	- Related IDs: 2026101509181628
+	- Note: a distro's pcmanfm-qt has its own autostart entry in `/etc/xdg/autostart`, which the session reads first. So on a box with one, its desktop icons show. tukzedo Linux has no pcmanfm-qt, so this only matters on other distros.
+	- Need to work out ambiguities: should the session hide that entry, or leave the distro's desktop alone? Hiding it needs a session change, such as a patch to lxqt-session.
+	- Progress log:
+		- 20261110: LXQtukz gets its own desktop manager, tukzdesk. This gets settled with it. (JC)
 
 - Ubuntu LTS and Debian 14 targets.
 	- ID: 2026101221490236
