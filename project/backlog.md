@@ -21,6 +21,67 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template). A milestone is a Task, and its items point to it with Parent ID.
 
+- The screen is locked, only shows a green circle, won't accept my password (and has no box for feedback), and I can't tell what user it thinks is logged in. (Critical, pre-next-cut.)
+	- ID: 2026101513313865
+	- Type: Bug
+	- Status: Waiting on automated testing
+	- Needs local test suite run?: Yes. A full `cicd/build.bash` from clean, then `cicd/session.bash` on its release.
+	- Needs external testing: A real login on Debian, as tukztest: the user name shows, the right password unlocks, the idle lock after an hour, and the lock before suspend. On NixOS, the first build and a login (milestone 2).
+	- Priority|Severity: Critical
+	- Opened: 20261015-133138
+	- Opened by: t00mietum
+	- Related IDs: 2026101412285001
+	- Test environment: this box, the stock LXQt session on Wayfire 0.9.0. The locker is swaylock 1.8.2, started by swayidle after 60 minutes idle. It was put in as a stopgap until the move to XFCE.
+	- Reproduced: Yes, 20261015, on the release build, headless in the test container. The lock key ran `lxqt-leave --lockscreen`, which then waited forever and locked nothing. Nothing locked when idle.
+	- Possible cause: swaylock with default options shows a blank screen. A ring shows only while typing: green as keys go in, blue while checking, red when wrong. There's no password box, no user name and no message, so a typo or a Caps Lock or layout problem looks the same as a hang.
+	- Progress log:
+		- 20261015: swaylock is running and holds both screens. Only one password try reached PAM, at 12:46, and it was rejected as a wrong password. The ZFS home unlock step after it never ran.
+		- 20261015: sending swaylock SIGUSR1 unlocks the screen, per its man page. Not tried yet.
+		- 20261015: the LXQtukz lock screen in the Settings item isn't done yet. It needs a password box, the user name, and a message on a failed try.
+		- 20261015: the password worked when typed more carefully. So unlocking works, and the bug is the missing feedback.
+		- 20261015: this box's own session is XFCE now, and the swaylock stopgap was only in the live config, never in the release. What's left is what LXQtukz itself locks with.
+		- 20261015: Wayfire 0.11's session-lock plugin is ext-session-lock-v1, which gtklock 4 needs. Our build has it.
+		- 20261015: gtklock shows a password box, "Login failed" for a wrong password, a Caps Lock warning, and with its userinfo module the user name. The name comes from AccountsService, so the headless check can't show it; it only checks that the module loads.
+		- 20261015: `gtklock -d` gives up waiting after 1 second. If locking is slower than that, the screen still locks, but LXQt shows an error box after the unlock. Headless it took about half a second.
+		- 20261015: for signoff: the idle lock is swayidle after 60 minutes, the same as Wayfire's default screensaver time. The Settings app's screensaver timeout doesn't move it yet.
+	- Actual cause: the release sets no locker. Upstream leaves LXQt's Wayland lock command empty, and the swayidle line in upstream's `wayfire.ini` is commented out. So the lock key did nothing and the session never locked when idle. The swaylock seen on this box was a stopgap in the live config with default options, which show no feedback.
+	- Decisions:
+		- 20261015: LXQtukz's locker is gtklock, since it has to work on both Debian 13 (gtklock 4.0.0 in trixie) and NixOS (nixpkgs has gtklock).
+		- 20261109: the 60 minute idle lock and gtklock's 1 s `-d` wait are fine as they are. (JC)
+	- Actual fix [Bug]: the release's `session.conf` sets LXQt's Wayland lock command to the new `lxqtukz-lock`, which runs gtklock with a `gtklock.ini` from the usual settings areas, and does nothing if the screen is already locked. A patch to upstream's `wayfire.ini` starts swayidle, which locks after an hour idle. The Debian deps list adds gtklock, its userinfo module, AccountsService, the SVG loader its icons need, swayidle and procps. The NixOS module adds gtklock, swayidle, gtklock's PAM service, AccountsService and a `gtklock.ini` with the module's store path.
+	- Branch: gtklock
+	- Commit: e39c62b
+	- Test case: `cicd/session.bash`, its Lock screen checks. They fail on the release built before the fix: no swayidle, no gtklock, and lxqt-leave left waiting. They pass after. Taking out the already-locked guard, or skipping the wrong password, turns them red.
+	- Verified: headless in the test container, on a release staged from this branch: the lock key locks in about half a second, the lock screen shows the password box, a wrong password shows "Login failed" and stays locked, and locking again while locked is quiet. The NixOS module evaluates, with gtklock 4.0.0, swayidle 1.9.0, the PAM service and the module path.
+	- Verified: 20261109, a full `cicd/build.bash` from clean, then `cicd/session.bash` on its release. All 18 checks passed, the lock screen ones included. The real login is still to do.
+	- Verified: 20261110, installed on this box from a full build, and `cicd/session.bash` passed all 19 checks on that release. The real login as tukztest is still to do.
+	- Swept: every LXQt way to lock goes through the one lock command: lxqt-leave (lock key, leave dialog, panel), lxqt-session (before sleep, logind's lock), lxqt-runner, and lxqt-powermanagement's idle action. lxqt-globalkeys' Ctrl+Alt+L and xscreensaver are X11-only and don't start in this session.
+
+- The backlight helper's polkit action is in the prefix, where polkit never reads it. Brightness keys may ask for an admin password.
+	- ID: 2026101421433387
+	- Type: Bug
+	- Status: Waiting on automated testing
+	- Needs local test suite run?: A full `cicd/build.bash` from clean, then `cicd/installer.bash` and `cicd/session.bash` on the release it makes.
+	- Needs external testing: A real login on this box after the next install. Brightness keys and the brightness settings change the backlight with no password prompt, and Debian's own LXQt session still does too.
+	- Priority|Severity: Avg
+	- Opened: 20261014-214333
+	- Opened by: t00mietum
+	- Parent ID: 2026101221490200
+	- Related IDs: 2026101221490206
+	- Note: polkit only reads `/usr/share/polkit-1/actions`, so the installer would link it there. Its action id is the same as Debian's liblxqt one, so it needs its own file name and id first. Unverified that the password prompt happens.
+	- Reproduced: Yes, 20261015, on Debian 13's polkit 126. pkexec on our helper finds no action for it and falls back to polkit's generic one, which asks for an admin password. With our action linked under its upstream id, Debian's helper got the generic one instead, since polkit keeps only one action per id.
+	- Actual cause: polkit reads actions only from its own dirs, never the prefix. And linked as it was, our action would replace a distro LXQt's, since both have the same id.
+	- Actual fix: the release renames the action to `org.lxqtukz.backlight-<version>`, in a file of the same name. The installer links every installed version's action into `/usr/share/polkit-1/actions`, so a session still on an older version keeps working after an update. Prune and uninstall remove the links, and a file that isn't our link is never replaced. NixOS needs nothing new: the module puts the package in the system packages, and polkit reads actions from there.
+	- Note: polkit 126 also reads `/usr/local/share/polkit-1/actions`, but missed links made there while that dir was new. So the links go in `/usr/share`.
+	- Branch: relfixes
+	- Commit: bd44d52
+	- Test case: `cicd/installer.bash`, its polkit checks. They fail with the installer and release from before the fix: no link, and pkexec falls back to the generic action. They pass after. A release with the upstream id fails 4 of them, and linking every action without the name check fails 2.
+	- Verified: 20261015, `cicd/installer.bash` passed on a release staged from this branch. pkexec picks our action for the helper the session runs, and an active session needs no password for it. Debian's helper keeps its own action. A session on an older version keeps its action after an update. Prune and uninstall leave no link behind.
+	- Verified: 20261015, the NixOS module evaluates with polkit on and the system packages' `share/polkit-1` linked. nixpkgs' liblxqt runs the helper by its full path, which matches the action. Not built.
+	- Verified: 20261109, a full `cicd/build.bash` from clean, then `cicd/installer.bash` (23 checks) and `cicd/session.bash` (18 checks) on its release. All passed. The real login is still to do.
+	- Verified: 20261110, installed on this box from a full build. Our action is linked in `/usr/share/polkit-1/actions`. The real login is still to do.
+	- Swept: the action is the only polkit file in the prefix. The installer's other links into system dirs go away on uninstall too, and `cicd/installer.bash` checks that no link into `/opt/lxqtukz` is left anywhere.
+
 - Paste randomly stops working in terminals. QTerminal and SilkTerm. (Critical.)
 	- ID: 2026101417551800
 	- Type: Bug
@@ -89,67 +150,6 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 		- 20261014: a "Test now" icon on screen off and the screensaver, and a test area for key repeat.
 		- 20261014: the tallest tab's last row was cut off when the window opened. Fixed.
 		- 20261015: the lock screen is gtklock, through LXQt's lock command (`lxqtukz-lock`, item 2026101513313865). The idle lock is a swayidle line in `wayfire.ini`'s `[autostart]`, at 60 minutes, so a lock screen row would edit that line.
-
-- The screen is locked, only shows a green circle, won't accept my password (and has no box for feedback), and I can't tell what user it thinks is logged in. (Critical, pre-next-cut.)
-	- ID: 2026101513313865
-	- Type: Bug
-	- Status: Waiting for testing
-	- Needs local test suite run?: Yes. A full `cicd/build.bash` from clean, then `cicd/session.bash` on its release.
-	- Needs external testing: A real login on Debian, as tukztest: the user name shows, the right password unlocks, the idle lock after an hour, and the lock before suspend. On NixOS, the first build and a login (milestone 2).
-	- Priority|Severity: Critical
-	- Opened: 20261015-133138
-	- Opened by: t00mietum
-	- Related IDs: 2026101412285001
-	- Test environment: this box, the stock LXQt session on Wayfire 0.9.0. The locker is swaylock 1.8.2, started by swayidle after 60 minutes idle. It was put in as a stopgap until the move to XFCE.
-	- Reproduced: Yes, 20261015, on the release build, headless in the test container. The lock key ran `lxqt-leave --lockscreen`, which then waited forever and locked nothing. Nothing locked when idle.
-	- Possible cause: swaylock with default options shows a blank screen. A ring shows only while typing: green as keys go in, blue while checking, red when wrong. There's no password box, no user name and no message, so a typo or a Caps Lock or layout problem looks the same as a hang.
-	- Progress log:
-		- 20261015: swaylock is running and holds both screens. Only one password try reached PAM, at 12:46, and it was rejected as a wrong password. The ZFS home unlock step after it never ran.
-		- 20261015: sending swaylock SIGUSR1 unlocks the screen, per its man page. Not tried yet.
-		- 20261015: the LXQtukz lock screen in the Settings item isn't done yet. It needs a password box, the user name, and a message on a failed try.
-		- 20261015: the password worked when typed more carefully. So unlocking works, and the bug is the missing feedback.
-		- 20261015: this box's own session is XFCE now, and the swaylock stopgap was only in the live config, never in the release. What's left is what LXQtukz itself locks with.
-		- 20261015: Wayfire 0.11's session-lock plugin is ext-session-lock-v1, which gtklock 4 needs. Our build has it.
-		- 20261015: gtklock shows a password box, "Login failed" for a wrong password, a Caps Lock warning, and with its userinfo module the user name. The name comes from AccountsService, so the headless check can't show it; it only checks that the module loads.
-		- 20261015: `gtklock -d` gives up waiting after 1 second. If locking is slower than that, the screen still locks, but LXQt shows an error box after the unlock. Headless it took about half a second.
-		- 20261015: for signoff: the idle lock is swayidle after 60 minutes, the same as Wayfire's default screensaver time. The Settings app's screensaver timeout doesn't move it yet.
-	- Actual cause: the release sets no locker. Upstream leaves LXQt's Wayland lock command empty, and the swayidle line in upstream's `wayfire.ini` is commented out. So the lock key did nothing and the session never locked when idle. The swaylock seen on this box was a stopgap in the live config with default options, which show no feedback.
-	- Decisions:
-		- 20261015: LXQtukz's locker is gtklock, since it has to work on both Debian 13 (gtklock 4.0.0 in trixie) and NixOS (nixpkgs has gtklock).
-		- 20261109: the 60 minute idle lock and gtklock's 1 s `-d` wait are fine as they are. (JC)
-	- Actual fix [Bug]: the release's `session.conf` sets LXQt's Wayland lock command to the new `lxqtukz-lock`, which runs gtklock with a `gtklock.ini` from the usual settings areas, and does nothing if the screen is already locked. A patch to upstream's `wayfire.ini` starts swayidle, which locks after an hour idle. The Debian deps list adds gtklock, its userinfo module, AccountsService, the SVG loader its icons need, swayidle and procps. The NixOS module adds gtklock, swayidle, gtklock's PAM service, AccountsService and a `gtklock.ini` with the module's store path.
-	- Branch: gtklock
-	- Commit: e39c62b
-	- Test case: `cicd/session.bash`, its Lock screen checks. They fail on the release built before the fix: no swayidle, no gtklock, and lxqt-leave left waiting. They pass after. Taking out the already-locked guard, or skipping the wrong password, turns them red.
-	- Verified: headless in the test container, on a release staged from this branch: the lock key locks in about half a second, the lock screen shows the password box, a wrong password shows "Login failed" and stays locked, and locking again while locked is quiet. The NixOS module evaluates, with gtklock 4.0.0, swayidle 1.9.0, the PAM service and the module path.
-	- Verified: 20261109, a full `cicd/build.bash` from clean, then `cicd/session.bash` on its release. All 18 checks passed, the lock screen ones included. The real login is still to do.
-	- Verified: 20261110, installed on this box from a full build, and `cicd/session.bash` passed all 19 checks on that release. The real login as tukztest is still to do.
-	- Swept: every LXQt way to lock goes through the one lock command: lxqt-leave (lock key, leave dialog, panel), lxqt-session (before sleep, logind's lock), lxqt-runner, and lxqt-powermanagement's idle action. lxqt-globalkeys' Ctrl+Alt+L and xscreensaver are X11-only and don't start in this session.
-
-- The backlight helper's polkit action is in the prefix, where polkit never reads it. Brightness keys may ask for an admin password.
-	- ID: 2026101421433387
-	- Type: Bug
-	- Status: Waiting for testing
-	- Needs local test suite run?: A full `cicd/build.bash` from clean, then `cicd/installer.bash` and `cicd/session.bash` on the release it makes.
-	- Needs external testing: A real login on this box after the next install. Brightness keys and the brightness settings change the backlight with no password prompt, and Debian's own LXQt session still does too.
-	- Priority|Severity: Avg
-	- Opened: 20261014-214333
-	- Opened by: t00mietum
-	- Parent ID: 2026101221490200
-	- Related IDs: 2026101221490206
-	- Note: polkit only reads `/usr/share/polkit-1/actions`, so the installer would link it there. Its action id is the same as Debian's liblxqt one, so it needs its own file name and id first. Unverified that the password prompt happens.
-	- Reproduced: Yes, 20261015, on Debian 13's polkit 126. pkexec on our helper finds no action for it and falls back to polkit's generic one, which asks for an admin password. With our action linked under its upstream id, Debian's helper got the generic one instead, since polkit keeps only one action per id.
-	- Actual cause: polkit reads actions only from its own dirs, never the prefix. And linked as it was, our action would replace a distro LXQt's, since both have the same id.
-	- Actual fix: the release renames the action to `org.lxqtukz.backlight-<version>`, in a file of the same name. The installer links every installed version's action into `/usr/share/polkit-1/actions`, so a session still on an older version keeps working after an update. Prune and uninstall remove the links, and a file that isn't our link is never replaced. NixOS needs nothing new: the module puts the package in the system packages, and polkit reads actions from there.
-	- Note: polkit 126 also reads `/usr/local/share/polkit-1/actions`, but missed links made there while that dir was new. So the links go in `/usr/share`.
-	- Branch: relfixes
-	- Commit: bd44d52
-	- Test case: `cicd/installer.bash`, its polkit checks. They fail with the installer and release from before the fix: no link, and pkexec falls back to the generic action. They pass after. A release with the upstream id fails 4 of them, and linking every action without the name check fails 2.
-	- Verified: 20261015, `cicd/installer.bash` passed on a release staged from this branch. pkexec picks our action for the helper the session runs, and an active session needs no password for it. Debian's helper keeps its own action. A session on an older version keeps its action after an update. Prune and uninstall leave no link behind.
-	- Verified: 20261015, the NixOS module evaluates with polkit on and the system packages' `share/polkit-1` linked. nixpkgs' liblxqt runs the helper by its full path, which matches the action. Not built.
-	- Verified: 20261109, a full `cicd/build.bash` from clean, then `cicd/installer.bash` (23 checks) and `cicd/session.bash` (18 checks) on its release. All passed. The real login is still to do.
-	- Verified: 20261110, installed on this box from a full build. Our action is linked in `/usr/share/polkit-1/actions`. The real login is still to do.
-	- Swept: the action is the only polkit file in the prefix. The installer's other links into system dirs go away on uninstall too, and `cicd/installer.bash` checks that no link into `/opt/lxqtukz` is left anywhere.
 
 - The planned container cleanup prunes every project's docker build cache
 	- ID: 2026110311291918
@@ -1130,11 +1130,11 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 
 	- The ID is the local time to the hundredth of a second. Opened is when it was written down, which may differ. (Use a keyboard macro and possibly something like project 'zuid' to generate.)
 
-	- Status values meaning: Testing means the fix is in and checks are running or still to run. Waiting on signoff means automated testing passed. Moot means something else changed that made it irrelevant. Canceled means it still applies but was decided against. Waiting for testing means the fix is in and waits on a long CI run or an outside test host. Can't reproduce means a real attempt to reproduce it failed.
-		- An item with nothing left for a person to judge skips Waiting on signoff and goes straight to Done. `Clean up the backlog` in the directives says when.
+	- Status values meaning: Testing means the fix is in and checks are running or still to run. Waiting on UAT means automated testing passed and a person has to try it. Moot means something else changed that made it irrelevant. Canceled means it still applies but was decided against. Waiting on automated testing means the fix is in and waits on a long CI run or an outside test host, with no person needed. Can't reproduce means a real attempt to reproduce it failed.
+		- An item with nothing left for a person to judge skips Waiting on UAT and goes straight to Done. `Clean up the backlog` in the directives says when.
 
 	- As issues are worked, and statuses change, place them in correct sorting order within the list:
-		- First by status: Waiting for answers, Waiting on signoff, Testing, Waiting for testing, Can't reproduce, Stalled, Started, Queued, Done, Deferred, Canceled, Moot
+		- First by status: Waiting for answers, Waiting on UAT, Testing, Waiting on automated testing, Can't reproduce, Stalled, Started, Queued, Done, Deferred, Canceled, Moot
 		- Then by severity|priority: Critical, High, Avg, Low
 		- Then by type: Bugs, [not bugs together]
 
@@ -1145,7 +1145,7 @@ Template:
 - Title
 	- ID: YYYYmmDDHHMMSSNN
 	- Type: [Bug|Feature|Enhancement|Task]
-	- Status: [Queued|Waiting for answers|Waiting on signoff|Waiting for testing|Started|Testing|Stalled|Can't reproduce|Moot|Canceled|Deferred|Done]
+	- Status: [Queued|Waiting for answers|Waiting on UAT|Waiting on automated testing|Started|Testing|Stalled|Can't reproduce|Moot|Canceled|Deferred|Done]
 	- Needs local test suite run?:
 	- Needs external testing:
 	- Priority [Feature|Enhancement] | Severity [Bug]: [Critical|High|Avg|Low]
