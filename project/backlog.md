@@ -57,31 +57,6 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 	- Verified: 20261110, installed on this box from a full build, and `cicd/session.bash` passed all 19 checks on that release. The real login as tukztest is still to do.
 	- Swept: every LXQt way to lock goes through the one lock command: lxqt-leave (lock key, leave dialog, panel), lxqt-session (before sleep, logind's lock), lxqt-runner, and lxqt-powermanagement's idle action. lxqt-globalkeys' Ctrl+Alt+L and xscreensaver are X11-only and don't start in this session.
 
-- The backlight helper's polkit action is in the prefix, where polkit never reads it. Brightness keys may ask for an admin password.
-	- ID: 2026101421433387
-	- Type: Bug
-	- Status: Waiting on automated testing
-	- Needs local test suite run?: A full `cicd/build.bash` from clean, then `cicd/installer.bash` and `cicd/session.bash` on the release it makes.
-	- Needs external testing: A real login on this box after the next install. Brightness keys and the brightness settings change the backlight with no password prompt, and Debian's own LXQt session still does too.
-	- Priority|Severity: Avg
-	- Opened: 20261014-214333
-	- Opened by: t00mietum
-	- Parent ID: 2026101221490200
-	- Related IDs: 2026101221490206
-	- Note: polkit only reads `/usr/share/polkit-1/actions`, so the installer would link it there. Its action id is the same as Debian's liblxqt one, so it needs its own file name and id first. Unverified that the password prompt happens.
-	- Reproduced: Yes, 20261015, on Debian 13's polkit 126. pkexec on our helper finds no action for it and falls back to polkit's generic one, which asks for an admin password. With our action linked under its upstream id, Debian's helper got the generic one instead, since polkit keeps only one action per id.
-	- Actual cause: polkit reads actions only from its own dirs, never the prefix. And linked as it was, our action would replace a distro LXQt's, since both have the same id.
-	- Actual fix: the release renames the action to `org.lxqtukz.backlight-<version>`, in a file of the same name. The installer links every installed version's action into `/usr/share/polkit-1/actions`, so a session still on an older version keeps working after an update. Prune and uninstall remove the links, and a file that isn't our link is never replaced. NixOS needs nothing new: the module puts the package in the system packages, and polkit reads actions from there.
-	- Note: polkit 126 also reads `/usr/local/share/polkit-1/actions`, but missed links made there while that dir was new. So the links go in `/usr/share`.
-	- Branch: relfixes
-	- Commit: bd44d52
-	- Test case: `cicd/installer.bash`, its polkit checks. They fail with the installer and release from before the fix: no link, and pkexec falls back to the generic action. They pass after. A release with the upstream id fails 4 of them, and linking every action without the name check fails 2.
-	- Verified: 20261015, `cicd/installer.bash` passed on a release staged from this branch. pkexec picks our action for the helper the session runs, and an active session needs no password for it. Debian's helper keeps its own action. A session on an older version keeps its action after an update. Prune and uninstall leave no link behind.
-	- Verified: 20261015, the NixOS module evaluates with polkit on and the system packages' `share/polkit-1` linked. nixpkgs' liblxqt runs the helper by its full path, which matches the action. Not built.
-	- Verified: 20261109, a full `cicd/build.bash` from clean, then `cicd/installer.bash` (23 checks) and `cicd/session.bash` (18 checks) on its release. All passed. The real login is still to do.
-	- Verified: 20261110, installed on this box from a full build. Our action is linked in `/usr/share/polkit-1/actions`. The real login is still to do.
-	- Swept: the action is the only polkit file in the prefix. The installer's other links into system dirs go away on uninstall too, and `cicd/installer.bash` checks that no link into `/opt/lxqtukz` is left anywhere.
-
 - Paste randomly stops working in terminals. QTerminal and SilkTerm. (Critical.)
 	- ID: 2026101417551800
 	- Type: Bug
@@ -150,6 +125,20 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 		- 20261014: a "Test now" icon on screen off and the screensaver, and a test area for key repeat.
 		- 20261014: the tallest tab's last row was cut off when the window opened. Fixed.
 		- 20261015: the lock screen is gtklock, through LXQt's lock command (`lxqtukz-lock`, item 2026101513313865). The idle lock is a swayidle line in `wayfire.ini`'s `[autostart]`, at 60 minutes, so a lock screen row would edit that line.
+
+- The panel is empty on a box with no other LXQt. No menu, no taskbar, no clock, and so no way to log out.
+	- ID: 2026111014355669
+	- Type: Bug
+	- Status: Testing
+	- Priority|Severity: High
+	- Opened: 20261110-143556
+	- Opened by: t00mietum
+	- Test environment: VM `tkz_deb`, a clean Debian 13 with SDDM, and 0.1.0-alpha1 from the 2026-11-10 13:30 build.
+	- Reproduced: Yes, 20261110, on the first login in the VM. The panel is a plain gray bar, and `~/.config/lxqtukz/panel.conf` has no `plugins=` line.
+	- Actual cause: lxqt-panel installs its default as `etc/xdg/lxqt/panel.conf`. `stage-prefix.bash` builds the vendor dir from `share/lxqt/*.conf` only, so `etc/xdg/lxqtukz/` never gets a `panel.conf`, and the panel starts with nothing.
+	- Verified: copying the release's `etc/xdg/lxqt/panel.conf` into its `etc/xdg/lxqtukz/` and deleting the user's empty one brings up the menu, desktops, quick launch, taskbar and clock.
+	- Actual fix: `stage-prefix.bash` takes upstream defaults from `etc/xdg/lxqt/` as well as `share/lxqt/`, and stops if the vendor dir ends up with no `panel.conf`. It's shared by the Debian build and the Nix package, so both get it.
+	- Test case: `cicd/session.bash`, "the panel loads its plugins". Every plugin in the release's `panel.conf` that's built as a library has to be mapped in the panel's process. It fails on the 2026-11-10 13:30 release, with no plugins line.
 
 - The planned container cleanup prunes every project's docker build cache
 	- ID: 2026110311291918
@@ -729,6 +718,33 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 			- ASan's allocator hides the heap from glibc's own stats, such as `mallinfo2`. A test that reads them should exit as skipped under ASan, not pass.
 	- Note: Our own code has no C. This applies to wayland, libdrm, libxkbcommon, and pixman, built from source.
 
+- The backlight helper's polkit action is in the prefix, where polkit never reads it. Brightness keys may ask for an admin password.
+	- ID: 2026101421433387
+	- Type: Bug
+	- Status: Done
+	- Needs local test suite run?: A full `cicd/build.bash` from clean, then `cicd/installer.bash` and `cicd/session.bash` on the release it makes.
+	- Needs external testing: A real login on this box after the next install. Brightness keys and the brightness settings change the backlight with no password prompt, and Debian's own LXQt session still does too.
+	- Priority|Severity: Avg
+	- Opened: 20261014-214333
+	- Opened by: t00mietum
+	- Parent ID: 2026101221490200
+	- Related IDs: 2026101221490206
+	- Note: polkit only reads `/usr/share/polkit-1/actions`, so the installer would link it there. Its action id is the same as Debian's liblxqt one, so it needs its own file name and id first. Unverified that the password prompt happens.
+	- Reproduced: Yes, 20261015, on Debian 13's polkit 126. pkexec on our helper finds no action for it and falls back to polkit's generic one, which asks for an admin password. With our action linked under its upstream id, Debian's helper got the generic one instead, since polkit keeps only one action per id.
+	- Actual cause: polkit reads actions only from its own dirs, never the prefix. And linked as it was, our action would replace a distro LXQt's, since both have the same id.
+	- Actual fix: the release renames the action to `org.lxqtukz.backlight-<version>`, in a file of the same name. The installer links every installed version's action into `/usr/share/polkit-1/actions`, so a session still on an older version keeps working after an update. Prune and uninstall remove the links, and a file that isn't our link is never replaced. NixOS needs nothing new: the module puts the package in the system packages, and polkit reads actions from there.
+	- Note: polkit 126 also reads `/usr/local/share/polkit-1/actions`, but missed links made there while that dir was new. So the links go in `/usr/share`.
+	- Branch: relfixes
+	- Commit: bd44d52
+	- Test case: `cicd/installer.bash`, its polkit checks. They fail with the installer and release from before the fix: no link, and pkexec falls back to the generic action. They pass after. A release with the upstream id fails 4 of them, and linking every action without the name check fails 2.
+	- Verified: 20261015, `cicd/installer.bash` passed on a release staged from this branch. pkexec picks our action for the helper the session runs, and an active session needs no password for it. Debian's helper keeps its own action. A session on an older version keeps its action after an update. Prune and uninstall leave no link behind.
+	- Verified: 20261015, the NixOS module evaluates with polkit on and the system packages' `share/polkit-1` linked. nixpkgs' liblxqt runs the helper by its full path, which matches the action. Not built.
+	- Verified: 20261109, a full `cicd/build.bash` from clean, then `cicd/installer.bash` (23 checks) and `cicd/session.bash` (18 checks) on its release. All passed. The real login is still to do.
+	- Verified: 20261110, installed on this box from a full build. Our action is linked in `/usr/share/polkit-1/actions`. The real login is still to do.
+	- Verified: 20261110, a real SDDM login as tukztest in VM `tkz_deb`, a clean Debian 13. The session is active on seat0, and `pkcheck` on the panel's process authorizes `org.lxqtukz.backlight-0.1.0-alpha1` with no prompt. The VM has no backlight, so the keys themselves weren't tried. They only run the helper this action covers.
+	- Closed: 20261110
+	- Swept: the action is the only polkit file in the prefix. The installer's other links into system dirs go away on uninstall too, and `cicd/installer.bash` checks that no link into `/opt/lxqtukz` is left anywhere.
+
 - With `AUTO_UPDATE=no`, installing deletes the updater timer's link in `/etc/systemd/system`, so turning auto update on later finds no timer.
 	- ID: 2026101509181633
 	- Type: Bug
@@ -1050,6 +1066,7 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 	- Need to work out ambiguities: should the session hide that entry, or leave the distro's desktop alone? Hiding it needs a session change, such as a patch to lxqt-session.
 	- Progress log:
 		- 20261110: LXQtukz gets its own desktop manager, tukzdesk. This gets settled with it. (JC)
+		- 20261110: not only pcmanfm-qt. With Plasma installed, its xwaylandvideobridge and kdeconnectd start in an LXQtukz session too, since their autostart entries have no `OnlyShowIn`. The bridge puts an empty white window in the middle of the screen.
 
 - Ubuntu LTS and Debian 14 targets.
 	- ID: 2026101221490236

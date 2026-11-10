@@ -12,8 +12,9 @@
 ##	    - the lock key and the idle lock: gtklock locks the session, with the
 ##	      user name module, and shows "Login failed" for a wrong password
 ##	- And that the manifest names the commit, Wayfire loads every plugin in
-##	  its list, no key is bound twice, nothing starts pcmanfm-qt, and Super+E
-##	  opens the home folder in the default file manager.
+##	  its list, the panel loads the plugins its default config lists, no key
+##	  is bound twice, nothing starts pcmanfm-qt, and Super+E opens the home
+##	  folder in the default file manager.
 ##	- The release comes from cicd/artifacts/release/, extracted to the path it
 ##	  was built for.
 ##	- Syntax: cicd/session.bash [--here]
@@ -161,6 +162,24 @@ if [[ "${commitLine}" =~ ^LXQTUKZ_COMMIT=[0-9a-f]{40}(-dirty)?$ ]]; then fCheck 
 ## Wayfire logs a plugin it can't load and goes on without it.
 unloaded="$(grep -o 'Failed to load plugin "[^"]*"' "${run}/session.log" | sort -u | tr '\n' ' ' || true)"
 if [[ -z "${unloaded}" ]]; then fCheck "Wayfire loads every plugin in its list" ok; else fCheck "Wayfire loads every plugin in its list" fail "${unloaded% }"; fi
+
+fSection "Panel"
+## The panel quietly starts empty when it finds no panel.conf. Every plugin
+## the release's panel.conf lists that is built as a library has to be loaded.
+panelPid="$(pgrep -x lxqt-panel | head -n1 || true)"
+panelConf="${PREFIX}/etc/xdg/lxqtukz/panel.conf"
+panelList="$(sed -n 's/^plugins[[:space:]]*=[[:space:]]*//p' "${panelConf}" 2>/dev/null | head -n1 | tr ',' ' ' || true)"
+fEcho "${panelConf##*/}: ${panelList:-no plugins line}"
+missing="" loaded=0
+for plugin in ${panelList}; do
+	lib="${PREFIX}/lib/lxqt-panel/lib${plugin}.so"
+	[[ -f "${lib}" ]] || continue
+	if [[ -n "${panelPid}" ]] && grep -qF "${lib}" "/proc/${panelPid}/maps"; then loaded=$((loaded + 1)); else missing+=" ${plugin}"; fi
+done
+if [[ -n "${panelList}" && "${loaded}" -gt 0 && -z "${missing}" ]]; then fCheck "the panel loads its plugins (${loaded} libraries)" ok; else
+	if [[ -z "${panelList}" ]]; then detail="no plugins line in ${panelConf}"; else detail="not loaded:${missing:- any}"; fi
+	fCheck "the panel loads its plugins" fail "${detail}"
+fi
 
 fSection "Wallpaper"
 userIni="${HOME}/.config/lxqtukz/wayfire.ini"
@@ -354,3 +373,4 @@ fEcho "done"
 ##		- 2026-10-15: Manifest commit and plugin checks.
 ##		- 2026-10-16: No pcmanfm-qt; Super+P opens the default file manager.
 ##		- 2026-11-09: The file manager key is Super+E. No key bound twice.
+##		- 2026-11-10: The panel loads its plugins.

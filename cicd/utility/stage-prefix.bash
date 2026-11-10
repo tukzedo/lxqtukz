@@ -5,7 +5,8 @@
 ##	  release manifest. The Debian build and the Nix package both call this, so
 ##	  the two install layouts can't drift apart.
 ##	- Vendor settings, <prefix>/etc/xdg/lxqtukz/, are built in layers:
-##	    1. upstream LXQt defaults (<prefix>/share/lxqt/*.conf)
+##	    1. upstream LXQt defaults (<prefix>/share/lxqt/*.conf, and
+##	       <prefix>/etc/xdg/lxqt/*.conf, where lxqt-panel puts panel.conf)
 ##	    2. upstream's Wayfire config for LXQt, as wayfire.ini
 ##	    3. our own files from source/etc/xdg/lxqtukz/, which win
 ##	  Changing a default is therefore either a patch to the upstream file (for
@@ -83,10 +84,13 @@ sed "s|@EXEC_PREFIX@|${execPrefix}|g" "${src}/share/wayland-sessions/lxqtukz.des
 vendor="${prefix}/etc/xdg/lxqtukz"
 ## Rebuilt from scratch each time, so a removed default goes away.
 rm -rf "${vendor}"; mkdir -p "${vendor}"
-for conf in "${prefix}"/share/lxqt/*.conf; do
+## LXQT_CONFIG_NAME moves every module's settings dir to lxqtukz/, so a
+## default left in etc/xdg/lxqt/ is never read. The panel came up empty that way.
+for conf in "${prefix}"/share/lxqt/*.conf "${prefix}"/etc/xdg/lxqt/*.conf; do
 	[[ -e "${conf}" ]] || continue
 	cp -L --no-preserve=mode "${conf}" "${vendor}/"
 done
+[[ -f "${vendor}/panel.conf" ]] || fDie "no panel.conf for ${vendor}; the panel would start empty"
 upstreamWayfire="${prefix}/share/lxqt/wayland/lxqt-wayfire.ini"
 [[ -f "${upstreamWayfire}" ]] || fDie "missing ${upstreamWayfire}; was lxqt-wayland-session built?"
 cp -L --no-preserve=mode "${upstreamWayfire}" "${vendor}/wayfire.ini"
@@ -167,3 +171,4 @@ fEcho "staged ${prefix} (${version}, ${target})"
 ##		- 2026-10-15: gtklock is the screen locker.
 ##		- 2026-10-15: The backlight action gets its own name per version;
 ##		  every plugin wayfire.ini lists must be in the prefix.
+##		- 2026-11-10: Defaults from etc/xdg/lxqt too, for the panel.
