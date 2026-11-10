@@ -21,42 +21,6 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template). A milestone is a Task, and its items point to it with Parent ID.
 
-- The screen is locked, only shows a green circle, won't accept my password (and has no box for feedback), and I can't tell what user it thinks is logged in. (Critical, pre-next-cut.)
-	- ID: 2026101513313865
-	- Type: Bug
-	- Status: Waiting on automated testing
-	- Needs local test suite run?: Yes. A full `cicd/build.bash` from clean, then `cicd/session.bash` on its release.
-	- Needs external testing: A real login on Debian, as tukztest: the user name shows, the right password unlocks, the idle lock after an hour, and the lock before suspend. On NixOS, the first build and a login (milestone 2).
-	- Priority|Severity: Critical
-	- Opened: 20261015-133138
-	- Opened by: t00mietum
-	- Related IDs: 2026101412285001
-	- Test environment: this box, the stock LXQt session on Wayfire 0.9.0. The locker is swaylock 1.8.2, started by swayidle after 60 minutes idle. It was put in as a stopgap until the move to XFCE.
-	- Reproduced: Yes, 20261015, on the release build, headless in the test container. The lock key ran `lxqt-leave --lockscreen`, which then waited forever and locked nothing. Nothing locked when idle.
-	- Possible cause: swaylock with default options shows a blank screen. A ring shows only while typing: green as keys go in, blue while checking, red when wrong. There's no password box, no user name and no message, so a typo or a Caps Lock or layout problem looks the same as a hang.
-	- Progress log:
-		- 20261015: swaylock is running and holds both screens. Only one password try reached PAM, at 12:46, and it was rejected as a wrong password. The ZFS home unlock step after it never ran.
-		- 20261015: sending swaylock SIGUSR1 unlocks the screen, per its man page. Not tried yet.
-		- 20261015: the LXQtukz lock screen in the Settings item isn't done yet. It needs a password box, the user name, and a message on a failed try.
-		- 20261015: the password worked when typed more carefully. So unlocking works, and the bug is the missing feedback.
-		- 20261015: this box's own session is XFCE now, and the swaylock stopgap was only in the live config, never in the release. What's left is what LXQtukz itself locks with.
-		- 20261015: Wayfire 0.11's session-lock plugin is ext-session-lock-v1, which gtklock 4 needs. Our build has it.
-		- 20261015: gtklock shows a password box, "Login failed" for a wrong password, a Caps Lock warning, and with its userinfo module the user name. The name comes from AccountsService, so the headless check can't show it; it only checks that the module loads.
-		- 20261015: `gtklock -d` gives up waiting after 1 second. If locking is slower than that, the screen still locks, but LXQt shows an error box after the unlock. Headless it took about half a second.
-		- 20261015: for signoff: the idle lock is swayidle after 60 minutes, the same as Wayfire's default screensaver time. The Settings app's screensaver timeout doesn't move it yet.
-	- Actual cause: the release sets no locker. Upstream leaves LXQt's Wayland lock command empty, and the swayidle line in upstream's `wayfire.ini` is commented out. So the lock key did nothing and the session never locked when idle. The swaylock seen on this box was a stopgap in the live config with default options, which show no feedback.
-	- Decisions:
-		- 20261015: LXQtukz's locker is gtklock, since it has to work on both Debian 13 (gtklock 4.0.0 in trixie) and NixOS (nixpkgs has gtklock).
-		- 20261109: the 60 minute idle lock and gtklock's 1 s `-d` wait are fine as they are. (JC)
-	- Actual fix [Bug]: the release's `session.conf` sets LXQt's Wayland lock command to the new `lxqtukz-lock`, which runs gtklock with a `gtklock.ini` from the usual settings areas, and does nothing if the screen is already locked. A patch to upstream's `wayfire.ini` starts swayidle, which locks after an hour idle. The Debian deps list adds gtklock, its userinfo module, AccountsService, the SVG loader its icons need, swayidle and procps. The NixOS module adds gtklock, swayidle, gtklock's PAM service, AccountsService and a `gtklock.ini` with the module's store path.
-	- Branch: gtklock
-	- Commit: e39c62b
-	- Test case: `cicd/session.bash`, its Lock screen checks. They fail on the release built before the fix: no swayidle, no gtklock, and lxqt-leave left waiting. They pass after. Taking out the already-locked guard, or skipping the wrong password, turns them red.
-	- Verified: headless in the test container, on a release staged from this branch: the lock key locks in about half a second, the lock screen shows the password box, a wrong password shows "Login failed" and stays locked, and locking again while locked is quiet. The NixOS module evaluates, with gtklock 4.0.0, swayidle 1.9.0, the PAM service and the module path.
-	- Verified: 20261109, a full `cicd/build.bash` from clean, then `cicd/session.bash` on its release. All 18 checks passed, the lock screen ones included. The real login is still to do.
-	- Verified: 20261110, installed on this box from a full build, and `cicd/session.bash` passed all 19 checks on that release. The real login as tukztest is still to do.
-	- Swept: every LXQt way to lock goes through the one lock command: lxqt-leave (lock key, leave dialog, panel), lxqt-session (before sleep, logind's lock), lxqt-runner, and lxqt-powermanagement's idle action. lxqt-globalkeys' Ctrl+Alt+L and xscreensaver are X11-only and don't start in this session.
-
 - Paste randomly stops working in terminals. QTerminal and SilkTerm. (Critical.)
 	- ID: 2026101417551800
 	- Type: Bug
@@ -125,20 +89,6 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 		- 20261014: a "Test now" icon on screen off and the screensaver, and a test area for key repeat.
 		- 20261014: the tallest tab's last row was cut off when the window opened. Fixed.
 		- 20261015: the lock screen is gtklock, through LXQt's lock command (`lxqtukz-lock`, item 2026101513313865). The idle lock is a swayidle line in `wayfire.ini`'s `[autostart]`, at 60 minutes, so a lock screen row would edit that line.
-
-- The panel is empty on a box with no other LXQt. No menu, no taskbar, no clock, and so no way to log out.
-	- ID: 2026111014355669
-	- Type: Bug
-	- Status: Testing
-	- Priority|Severity: High
-	- Opened: 20261110-143556
-	- Opened by: t00mietum
-	- Test environment: VM `tkz_deb`, a clean Debian 13 with SDDM, and 0.1.0-alpha1 from the 2026-11-10 13:30 build.
-	- Reproduced: Yes, 20261110, on the first login in the VM. The panel is a plain gray bar, and `~/.config/lxqtukz/panel.conf` has no `plugins=` line.
-	- Actual cause: lxqt-panel installs its default as `etc/xdg/lxqt/panel.conf`. `stage-prefix.bash` builds the vendor dir from `share/lxqt/*.conf` only, so `etc/xdg/lxqtukz/` never gets a `panel.conf`, and the panel starts with nothing.
-	- Verified: copying the release's `etc/xdg/lxqt/panel.conf` into its `etc/xdg/lxqtukz/` and deleting the user's empty one brings up the menu, desktops, quick launch, taskbar and clock.
-	- Actual fix: `stage-prefix.bash` takes upstream defaults from `etc/xdg/lxqt/` as well as `share/lxqt/`, and stops if the vendor dir ends up with no `panel.conf`. It's shared by the Debian build and the Nix package, so both get it.
-	- Test case: `cicd/session.bash`, "the panel loads its plugins". Every plugin in the release's `panel.conf` that's built as a library has to be mapped in the panel's process. It fails on the 2026-11-10 13:30 release, with no plugins line.
 
 - The planned container cleanup prunes every project's docker build cache
 	- ID: 2026110311291918
@@ -730,6 +680,61 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 			- heaptrack and ASan can't share a build. The soak test uses a plain build.
 			- ASan's allocator hides the heap from glibc's own stats, such as `mallinfo2`. A test that reads them should exit as skipped under ASan, not pass.
 	- Note: Our own code has no C. This applies to wayland, libdrm, libxkbcommon, and pixman, built from source.
+
+- The screen is locked, only shows a green circle, won't accept my password (and has no box for feedback), and I can't tell what user it thinks is logged in. (Critical, pre-next-cut.)
+	- ID: 2026101513313865
+	- Type: Bug
+	- Status: Done
+	- Needs local test suite run?: Yes. A full `cicd/build.bash` from clean, then `cicd/session.bash` on its release.
+	- Needs external testing: A real login on Debian, as tukztest: the user name shows, the right password unlocks, the idle lock after an hour, and the lock before suspend. On NixOS, the first build and a login (milestone 2).
+	- Priority|Severity: Critical
+	- Opened: 20261015-133138
+	- Opened by: t00mietum
+	- Related IDs: 2026101412285001
+	- Test environment: this box, the stock LXQt session on Wayfire 0.9.0. The locker is swaylock 1.8.2, started by swayidle after 60 minutes idle. It was put in as a stopgap until the move to XFCE.
+	- Reproduced: Yes, 20261015, on the release build, headless in the test container. The lock key ran `lxqt-leave --lockscreen`, which then waited forever and locked nothing. Nothing locked when idle.
+	- Possible cause: swaylock with default options shows a blank screen. A ring shows only while typing: green as keys go in, blue while checking, red when wrong. There's no password box, no user name and no message, so a typo or a Caps Lock or layout problem looks the same as a hang.
+	- Progress log:
+		- 20261015: swaylock is running and holds both screens. Only one password try reached PAM, at 12:46, and it was rejected as a wrong password. The ZFS home unlock step after it never ran.
+		- 20261015: sending swaylock SIGUSR1 unlocks the screen, per its man page. Not tried yet.
+		- 20261015: the LXQtukz lock screen in the Settings item isn't done yet. It needs a password box, the user name, and a message on a failed try.
+		- 20261015: the password worked when typed more carefully. So unlocking works, and the bug is the missing feedback.
+		- 20261015: this box's own session is XFCE now, and the swaylock stopgap was only in the live config, never in the release. What's left is what LXQtukz itself locks with.
+		- 20261015: Wayfire 0.11's session-lock plugin is ext-session-lock-v1, which gtklock 4 needs. Our build has it.
+		- 20261015: gtklock shows a password box, "Login failed" for a wrong password, a Caps Lock warning, and with its userinfo module the user name. The name comes from AccountsService, so the headless check can't show it; it only checks that the module loads.
+		- 20261015: `gtklock -d` gives up waiting after 1 second. If locking is slower than that, the screen still locks, but LXQt shows an error box after the unlock. Headless it took about half a second.
+		- 20261015: for signoff: the idle lock is swayidle after 60 minutes, the same as Wayfire's default screensaver time. The Settings app's screensaver timeout doesn't move it yet.
+	- Actual cause: the release sets no locker. Upstream leaves LXQt's Wayland lock command empty, and the swayidle line in upstream's `wayfire.ini` is commented out. So the lock key did nothing and the session never locked when idle. The swaylock seen on this box was a stopgap in the live config with default options, which show no feedback.
+	- Decisions:
+		- 20261015: LXQtukz's locker is gtklock, since it has to work on both Debian 13 (gtklock 4.0.0 in trixie) and NixOS (nixpkgs has gtklock).
+		- 20261109: the 60 minute idle lock and gtklock's 1 s `-d` wait are fine as they are. (JC)
+	- Actual fix [Bug]: the release's `session.conf` sets LXQt's Wayland lock command to the new `lxqtukz-lock`, which runs gtklock with a `gtklock.ini` from the usual settings areas, and does nothing if the screen is already locked. A patch to upstream's `wayfire.ini` starts swayidle, which locks after an hour idle. The Debian deps list adds gtklock, its userinfo module, AccountsService, the SVG loader its icons need, swayidle and procps. The NixOS module adds gtklock, swayidle, gtklock's PAM service, AccountsService and a `gtklock.ini` with the module's store path.
+	- Branch: gtklock
+	- Commit: e39c62b
+	- Test case: `cicd/session.bash`, its Lock screen checks. They fail on the release built before the fix: no swayidle, no gtklock, and lxqt-leave left waiting. They pass after. Taking out the already-locked guard, or skipping the wrong password, turns them red.
+	- Verified: headless in the test container, on a release staged from this branch: the lock key locks in about half a second, the lock screen shows the password box, a wrong password shows "Login failed" and stays locked, and locking again while locked is quiet. The NixOS module evaluates, with gtklock 4.0.0, swayidle 1.9.0, the PAM service and the module path.
+	- Verified: 20261109, a full `cicd/build.bash` from clean, then `cicd/session.bash` on its release. All 18 checks passed, the lock screen ones included. The real login is still to do.
+	- Verified: 20261110, installed on this box from a full build, and `cicd/session.bash` passed all 19 checks on that release. The real login as tukztest is still to do.
+	- Verified: 20261110, a real SDDM login as tukztest in VM `tkz_deb`, a clean Debian 13. The lock key shows gtklock with the user name from AccountsService and a password box. A wrong password shows "Login failed" and stays locked, and the right one unlocks with no error box. A suspend locks first, since gtklock started before the sleep. With no input, it locked at 15:35:10, 60 minutes after the login at 14:35:08.
+	- Swept: every LXQt way to lock goes through the one lock command: lxqt-leave (lock key, leave dialog, panel), lxqt-session (before sleep, logind's lock), lxqt-runner, and lxqt-powermanagement's idle action. lxqt-globalkeys' Ctrl+Alt+L and xscreensaver are X11-only and don't start in this session.
+	- Closed: 20261110
+
+- The panel is empty on a box with no other LXQt. No menu, no taskbar, no clock, and so no way to log out.
+	- ID: 2026111014355669
+	- Type: Bug
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261110-143556
+	- Opened by: t00mietum
+	- Test environment: VM `tkz_deb`, a clean Debian 13 with SDDM, and 0.1.0-alpha1 from the 2026-11-10 13:30 build.
+	- Reproduced: Yes, 20261110, on the first login in the VM. The panel is a plain gray bar, and `~/.config/lxqtukz/panel.conf` has no `plugins=` line.
+	- Actual cause: lxqt-panel installs its default as `etc/xdg/lxqt/panel.conf`. `stage-prefix.bash` builds the vendor dir from `share/lxqt/*.conf` only, so `etc/xdg/lxqtukz/` never gets a `panel.conf`, and the panel starts with nothing.
+	- Verified: copying the release's `etc/xdg/lxqt/panel.conf` into its `etc/xdg/lxqtukz/` and deleting the user's empty one brings up the menu, desktops, quick launch, taskbar and clock.
+	- Actual fix: `stage-prefix.bash` takes upstream defaults from `etc/xdg/lxqt/` as well as `share/lxqt/`, and stops if the vendor dir ends up with no `panel.conf`. It's shared by the Debian build and the Nix package, so both get it.
+	- Test case: `cicd/session.bash`, "the panel loads its plugins". Every plugin in the release's `panel.conf` that's built as a library has to be mapped in the panel's process. It fails on the 2026-11-10 13:30 release, with no plugins line.
+	- Verified: 20261110, a full build from clean. `cicd/session.bash` passes all 20 checks, the new one included, and `cicd/installer.bash` all 23. In VM `tkz_deb`, a first login with no user config shows the menu, desktops, quick launch, taskbar and clock.
+	- Commit: 618fcd9
+	- Closed: 20261110
 
 - The backlight helper's polkit action is in the prefix, where polkit never reads it. Brightness keys may ask for an admin password.
 	- ID: 2026101421433387
