@@ -46,7 +46,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - The backlight helper's polkit action has its own name per version, and the installer links it where polkit reads it.
 
-- Super+P opens the home folder in whatever file manager is the default. It used to start pcmanfm-qt.
+- Super+E opens the home folder in whatever file manager is the default. Super+P used to start pcmanfm-qt.
+
+- The workspace overview moved from Super+E to Super+W.
 
 ### Removed
 

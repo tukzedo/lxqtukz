@@ -21,6 +21,17 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 Sorted per the notes in [Template](#template). A milestone is a Task, and its items point to it with Parent ID.
 
+- A distro's pcmanfm-qt starts its own desktop in an LXQtukz session
+	- ID: 2026111013575300
+	- Type: Task
+	- Status: Waiting for answers
+	- Priority|Severity: Low
+	- Opened: 20261110-135753
+	- Opened by: t00mietum
+	- Related IDs: 2026101509181628
+	- Note: a distro's pcmanfm-qt has its own autostart entry in `/etc/xdg/autostart`, which the session reads first. So on a box with one, its desktop icons show. tukzedo Linux has no pcmanfm-qt, so this only matters on other distros.
+	- Need to work out ambiguities: should the session hide that entry, or leave the distro's desktop alone? Hiding it needs a session change, such as a patch to lxqt-session.
+
 - Paste randomly stops working in terminals. QTerminal and SilkTerm. (Critical.)
 	- ID: 2026101417551800
 	- Type: Bug
@@ -116,12 +127,14 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 	- Actual cause: the release sets no locker. Upstream leaves LXQt's Wayland lock command empty, and the swayidle line in upstream's `wayfire.ini` is commented out. So the lock key did nothing and the session never locked when idle. The swaylock seen on this box was a stopgap in the live config with default options, which show no feedback.
 	- Decisions:
 		- 20261015: LXQtukz's locker is gtklock, since it has to work on both Debian 13 (gtklock 4.0.0 in trixie) and NixOS (nixpkgs has gtklock).
+		- 20261109: the 60 minute idle lock and gtklock's 1 s `-d` wait are fine as they are. (JC)
 	- Actual fix [Bug]: the release's `session.conf` sets LXQt's Wayland lock command to the new `lxqtukz-lock`, which runs gtklock with a `gtklock.ini` from the usual settings areas, and does nothing if the screen is already locked. A patch to upstream's `wayfire.ini` starts swayidle, which locks after an hour idle. The Debian deps list adds gtklock, its userinfo module, AccountsService, the SVG loader its icons need, swayidle and procps. The NixOS module adds gtklock, swayidle, gtklock's PAM service, AccountsService and a `gtklock.ini` with the module's store path.
 	- Branch: gtklock
 	- Commit: e39c62b
 	- Test case: `cicd/session.bash`, its Lock screen checks. They fail on the release built before the fix: no swayidle, no gtklock, and lxqt-leave left waiting. They pass after. Taking out the already-locked guard, or skipping the wrong password, turns them red.
 	- Verified: headless in the test container, on a release staged from this branch: the lock key locks in about half a second, the lock screen shows the password box, a wrong password shows "Login failed" and stays locked, and locking again while locked is quiet. The NixOS module evaluates, with gtklock 4.0.0, swayidle 1.9.0, the PAM service and the module path.
 	- Verified: 20261109, a full `cicd/build.bash` from clean, then `cicd/session.bash` on its release. All 18 checks passed, the lock screen ones included. The real login is still to do.
+	- Verified: 20261110, installed on this box from a full build, and `cicd/session.bash` passed all 19 checks on that release. The real login as tukztest is still to do.
 	- Swept: every LXQt way to lock goes through the one lock command: lxqt-leave (lock key, leave dialog, panel), lxqt-session (before sleep, logind's lock), lxqt-runner, and lxqt-powermanagement's idle action. lxqt-globalkeys' Ctrl+Alt+L and xscreensaver are X11-only and don't start in this session.
 
 - The backlight helper's polkit action is in the prefix, where polkit never reads it. Brightness keys may ask for an admin password.
@@ -146,32 +159,8 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 	- Verified: 20261015, `cicd/installer.bash` passed on a release staged from this branch. pkexec picks our action for the helper the session runs, and an active session needs no password for it. Debian's helper keeps its own action. A session on an older version keeps its action after an update. Prune and uninstall leave no link behind.
 	- Verified: 20261015, the NixOS module evaluates with polkit on and the system packages' `share/polkit-1` linked. nixpkgs' liblxqt runs the helper by its full path, which matches the action. Not built.
 	- Verified: 20261109, a full `cicd/build.bash` from clean, then `cicd/installer.bash` (23 checks) and `cicd/session.bash` (18 checks) on its release. All passed. The real login is still to do.
+	- Verified: 20261110, installed on this box from a full build. Our action is linked in `/usr/share/polkit-1/actions`. The real login is still to do.
 	- Swept: the action is the only polkit file in the prefix. The installer's other links into system dirs go away on uninstall too, and `cicd/installer.bash` checks that no link into `/opt/lxqtukz` is left anywhere.
-
-- Drop pcmanfm-qt from the build. Find what still needs libfm-qt, and what shows desktop icons until tukzdesk.
-	- ID: 2026101509181628
-	- Type: Task
-	- Status: Waiting for answers
-	- Needs local test suite run?: a full `cicd/build.bash` from clean, then `cicd/session.bash` on its release.
-	- Opened: 20261015-091816
-	- Opened by: t00mietum
-	- Parent ID: 2026101221490200
-	- Related IDs: 2026101221490216
-	- Note: it also drops the pcmanfm-qt patch for the older layer-shell-qt.
-	- Progress log:
-		- 20261016: pcmanfm-qt is out of the build and its patch queue is gone. The Nix side reads the same pin list, so it's out there too.
-		- 20261016: libfm-qt stays. The Qt file dialog in lxqt-qtplugin and the portal's file chooser both use it. Nothing else that's built does.
-		- 20261016: the desktop until tukzdesk is the wallpaper from swaybg, with no icons. Super+P opened pcmanfm-qt, and now opens the home folder in whatever file manager is the default. With none installed, nothing opens.
-		- 20261016: question: a distro's pcmanfm-qt still starts its own desktop in the session, since its autostart entry in `/etc/xdg` is read first. Debian's LXQt on this box has one, so its desktop icons would show here. Should the session hide that entry, or leave the distro's desktop alone? Hiding it needs a session change, such as a patch to lxqt-session.
-		- 20261016: question: is Super+P opening the default file manager right, or should the key do nothing until captain-nemo?
-		- 20261016: the "Override wallpaper" box on lxqt-config's theme page starts pcmanfm-qt, so it does nothing now. Left as is until tukzdesk.
-	- Branch: nopcman
-	- Commit: 91d78e3
-	- Test case: `cicd/session.bash`, its "File manager and desktop" checks. On the release from before the change, 3 fail: the prefix and `wayfire.ini` name pcmanfm-qt, `pcmanfm-qt --desktop` runs, and Super+P doesn't open the default file manager. They pass on a release staged from this branch.
-	- Verified: 20261016, `cicd/session.bash` passed every check on a prefix staged from this branch with pcmanfm-qt's files taken out, which is what a clean build gives. Not a full build.
-	- Verified: 20261016, a distro-style `lxqt-desktop.desktop` in `/etc/xdg/autostart` in the test container starts its pcmanfm-qt in the session, and the new check catches it.
-	- Verified: 20261109, a full `cicd/build.bash` from clean, then `cicd/session.bash` on its release. All checks passed, the "File manager and desktop" ones included. Only the 2 questions are left.
-	- Swept: every pcmanfm-qt and libfm-qt name in the repo and in the built prefix. Left alone, since nothing in the session runs them: lxqt-globalkeys' Ctrl+Alt+E (X11 only), lxqt-menu-data's entry for pcmanfm-qt's desktop settings (skipped when missing), lxqt-config's man page, and the other compositors' configs that lxqt-wayland-session installs.
 
 - The planned container cleanup prunes every project's docker build cache
 	- ID: 2026110311291918
@@ -450,23 +439,6 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 	- Opened: 20261012-214902
 	- Opened by: t00mietum
 	- Parent ID: 2026101221490202
-
-- CI/CD dogfood: copy each build to its final install location on this box, not to a synced app folder, since this is the only test machine. The settings app already goes to `~/.local/bin`.
-	- ID: 2026101418583700
-	- Type: Task
-	- Status: Waiting for testing
-	- Needs local test suite run?: A real `cicd/build.bash dogfood` on this box. It needs sudo, and the full build takes a while.
-	- Progress log:
-		- 20261015: done by hand once. LXQtukz reinstalled in `/opt/lxqtukz` from the 14:24 build, and `cicd/settings.bash dogfood` put the settings app in `~/.local/bin`. The pipeline step itself is still to do.
-		- 20261015: `cicd/build.bash dogfood` does a full build, then installs it with `install.bash -y --from`. The same version as the installed one gets `lxqtukz-update --uninstall -y` first. Any other version installs over it. It skips the reinstall while a session runs that version. The settings app stays with `cicd/settings.bash dogfood`.
-	- Opened: 20261014-185837
-	- Opened by: t00mietum
-	- Parent ID: 2026101221490203
-	- Decisions:
-		- Off unless named, since it needs sudo. Refused with a component list or `--here`, since only a full build writes a release, and `--here` builds straight into `/opt/lxqtukz`.
-	- Verified: 20261015, `cicd/tooling.bash dogfood` passes, with sudo, docker, the installer and the updater stubbed. It checks the command order for not installed, same version, other version, same version in use, and no `lxqtukz-update` on PATH. Also no install after a failed build, and the refusals. With the uninstall line taken out, the same-version check fails.
-	- Test case: `cicd/tooling.bash dogfood`.
-	- Branch: cicdbits
 
 - Bring over the nemo-anywhere pipeline. `cicd.bash` stage engine, `config.bash` set up for `upstream.bash` and `build.bash`, pre-push merge gate, version-bump guard on the `version` file, `release.bash`, `changelog-notes.bash`, and backup and publish.
 	- ID: 2026101221490220
@@ -771,7 +743,7 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 - With `AUTO_UPDATE=no`, installing deletes the updater timer's link in `/etc/systemd/system`, so turning auto update on later finds no timer.
 	- ID: 2026101509181633
 	- Type: Bug
-	- Status: Waiting for testing
+	- Status: Done
 	- Needs external testing: The next install on this box, which has `AUTO_UPDATE=no`. Both unit links stay, and `systemctl enable --now lxqtukz-update.timer` works afterward.
 	- Priority|Severity: Low
 	- Opened: 20261015-091816
@@ -785,7 +757,54 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 	- Test case: `cicd/installer.bash`, its timer checks. They fail with the old installer: the timer's link is gone, and enabling it says the unit doesn't exist. They pass after.
 	- Verified: 20261015, `cicd/installer.bash`, with unit links made offline: both units stay linked through installs and an update with `AUTO_UPDATE=no`, the timer can be enabled afterward, and the next install turns it off again. Not tried against a running systemd.
 	- Verified: 20261109, `cicd/installer.bash` passed its timer checks on a release from a full build. Not tried against a running systemd yet.
+	- Verified: 20261110, after 2 real installs on this box with `AUTO_UPDATE=no`, both units are linked in `/etc/systemd/system`, and the running systemd loads the timer (`linked`, `loaded`). `cicd/installer.bash` covers turning it on.
 	- Swept: the only other `systemctl disable` is in `--uninstall`, which removes both links anyway.
+
+- CI/CD dogfood: copy each build to its final install location on this box, not to a synced app folder, since this is the only test machine. The settings app already goes to `~/.local/bin`.
+	- ID: 2026101418583700
+	- Type: Task
+	- Status: Done
+	- Needs local test suite run?: A real `cicd/build.bash dogfood` on this box. It needs sudo, and the full build takes a while.
+	- Progress log:
+		- 20261015: done by hand once. LXQtukz reinstalled in `/opt/lxqtukz` from the 14:24 build, and `cicd/settings.bash dogfood` put the settings app in `~/.local/bin`. The pipeline step itself is still to do.
+		- 20261015: `cicd/build.bash dogfood` does a full build, then installs it with `install.bash -y --from`. The same version as the installed one gets `lxqtukz-update --uninstall -y` first. Any other version installs over it. It skips the reinstall while a session runs that version. The settings app stays with `cicd/settings.bash dogfood`.
+	- Opened: 20261014-185837
+	- Opened by: t00mietum
+	- Parent ID: 2026101221490203
+	- Decisions:
+		- Off unless named, since it needs sudo. Refused with a component list or `--here`, since only a full build writes a release, and `--here` builds straight into `/opt/lxqtukz`.
+	- Verified: 20261015, `cicd/tooling.bash dogfood` passes, with sudo, docker, the installer and the updater stubbed. It checks the command order for not installed, same version, other version, same version in use, and no `lxqtukz-update` on PATH. Also no install after a failed build, and the refusals. With the uninstall line taken out, the same-version check fails.
+	- Verified: 20261109 and 20261110, `cicd/build.bash dogfood` on this box, twice. Each did a full build, uninstalled the same version, installed the new release with `install.bash -y --from`, and apt added what the deps list named.
+	- Test case: `cicd/tooling.bash dogfood`.
+	- Branch: cicdbits
+
+- Drop pcmanfm-qt from the build. Find what still needs libfm-qt, and what shows desktop icons until tukzdesk.
+	- ID: 2026101509181628
+	- Type: Task
+	- Status: Done
+	- Needs local test suite run?: a full `cicd/build.bash` from clean, then `cicd/session.bash` on its release.
+	- Opened: 20261015-091816
+	- Opened by: t00mietum
+	- Parent ID: 2026101221490200
+	- Related IDs: 2026101221490216, 2026111013575300
+	- Note: it also drops the pcmanfm-qt patch for the older layer-shell-qt.
+	- Progress log:
+		- 20261016: pcmanfm-qt is out of the build and its patch queue is gone. The Nix side reads the same pin list, so it's out there too.
+		- 20261016: libfm-qt stays. The Qt file dialog in lxqt-qtplugin and the portal's file chooser both use it. Nothing else that's built does.
+		- 20261016: the desktop until tukzdesk is the wallpaper from swaybg, with no icons. Super+P opened pcmanfm-qt, and now opens the home folder in whatever file manager is the default. With none installed, nothing opens.
+		- 20261016: question: a distro's pcmanfm-qt still starts its own desktop in the session, since its autostart entry in `/etc/xdg` is read first. Debian's LXQt on this box has one, so its desktop icons would show here. Should the session hide that entry, or leave the distro's desktop alone? Hiding it needs a session change, such as a patch to lxqt-session.
+		- 20261016: question: is Super+P opening the default file manager right, or should the key do nothing until captain-nemo?
+		- 20261016: the "Override wallpaper" box on lxqt-config's theme page starts pcmanfm-qt, so it does nothing now. Left as is until tukzdesk.
+		- 20261110: the file manager key is Super+E. On tukzedo Linux the file manager is Nemo Anywhere, until captain-nemo replaces it. Expo had Super+E too, so the workspace overview moved to Super+W.
+		- 20261110: the question about a distro's pcmanfm-qt autostart entry moved to 2026111013575300.
+	- Branch: nopcman
+	- Commit: 91d78e3
+	- Test case: `cicd/session.bash`, its "File manager and desktop" checks. On the release from before the change, 3 fail: the prefix and `wayfire.ini` name pcmanfm-qt, `pcmanfm-qt --desktop` runs, and Super+P doesn't open the default file manager. They pass on a release staged from this branch.
+	- Verified: 20261016, `cicd/session.bash` passed every check on a prefix staged from this branch with pcmanfm-qt's files taken out, which is what a clean build gives. Not a full build.
+	- Verified: 20261016, a distro-style `lxqt-desktop.desktop` in `/etc/xdg/autostart` in the test container starts its pcmanfm-qt in the session, and the new check catches it.
+	- Verified: 20261109, a full `cicd/build.bash` from clean, then `cicd/session.bash` on its release. All checks passed, the "File manager and desktop" ones included. Only the 2 questions are left.
+	- Verified: 20261110, `cicd/session.bash` passed all 19 checks on a full build, with Super+E opening the default file manager and a new check that no key is bound twice in `wayfire.ini`. Both checks fail on the build from before the expo move.
+	- Swept: every pcmanfm-qt and libfm-qt name in the repo and in the built prefix. Left alone, since nothing in the session runs them: lxqt-globalkeys' Ctrl+Alt+E (X11 only), lxqt-menu-data's entry for pcmanfm-qt's desktop settings (skipped when missing), lxqt-config's man page, and the other compositors' configs that lxqt-wayland-session installs.
 
 - `cicd/upstream.bash`: `status --fetch` to update mirrors before comparing, and a 1-line summary for the merge gate.
 	- ID: 2026101221490230

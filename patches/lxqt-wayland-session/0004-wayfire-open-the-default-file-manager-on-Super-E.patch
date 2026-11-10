@@ -1,24 +1,27 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: t00mietum <73576036+t00mietum@users.noreply.github.com>
 Date: Thu, 15 Oct 2026 17:23:35 -0700
-Subject: [PATCH] wayfire: open the default file manager
+Subject: [PATCH] wayfire: open the default file manager on Super+E
 
 Super+P started pcmanfm-qt by name, which isn't always installed. Open
-the home folder with whatever app is the default for folders instead.
-qtxdg-mat comes with LXQt, so this needs nothing new.
+the home folder with whatever app is the default for folders instead,
+on Super+E, the usual file manager key. qtxdg-mat comes with LXQt, so
+this needs nothing new.
 ---
- configurations/lxqt-wayfire.ini | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
+ configurations/lxqt-wayfire.ini | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/configurations/lxqt-wayfire.ini b/configurations/lxqt-wayfire.ini
-index 46193e28e2adcb99fce262a9783530a7879768ea..4f478928b1d92072a6ef63e09c30b348eb4903ba 100644
+index 46193e28e2adcb99fce262a9783530a7879768ea..6116debffd5f2976a7e6812e6b2db80744aecccb 100644
 --- a/configurations/lxqt-wayfire.ini
 +++ b/configurations/lxqt-wayfire.ini
-@@ -186,7 +186,7 @@ command_hibernate = lxqt-leave --hibernate
+@@ -185,8 +185,8 @@ command_hibernate = lxqt-leave --hibernate
+ # https://lxqt-project.org/wiki/Wayland-Session.html#global-shortcuts
  binding_featherpad = <super> KEY_F
  command_featherpad = lxqt-qdbus run featherpad
- binding_filemanager = <super> KEY_P
+-binding_filemanager = <super> KEY_P
 -command_filemanager = pcmanfm-qt
++binding_filemanager = <super> KEY_E
 +command_filemanager = qtxdg-mat open "$HOME"
  
  # Screen locker

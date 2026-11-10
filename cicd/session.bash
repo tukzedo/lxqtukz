@@ -12,8 +12,8 @@
 ##	    - the lock key and the idle lock: gtklock locks the session, with the
 ##	      user name module, and shows "Login failed" for a wrong password
 ##	- And that the manifest names the commit, Wayfire loads every plugin in
-##	  its list, nothing starts pcmanfm-qt, and Super+P opens the home folder
-##	  in the default file manager.
+##	  its list, no key is bound twice, nothing starts pcmanfm-qt, and Super+E
+##	  opens the home folder in the default file manager.
 ##	- The release comes from cicd/artifacts/release/, extracted to the path it
 ##	  was built for.
 ##	- Syntax: cicd/session.bash [--here]
@@ -225,6 +225,30 @@ export WAYFIRE_SOCKET="${_WAYFIRE_SOCKET}"
 export WAYLAND_DISPLAY="$(find "${XDG_RUNTIME_DIR}" -maxdepth 1 -type s -name 'wayland-*' -printf '%f\n' | head -n1 || true)"
 fKeys(){ python3 -I "${KEYS}" "$@" >/dev/null 2>&1; }
 fWaitFor fKeys shift || fDie "stipc did not load; check the plugins line in ${userIni}"
+## Two plugins on one key means only one of them ever gets it. Super+E was
+## both expo and the file manager, and the overview won.
+dupKeys="$(awk '
+	/^\[/ { sec = $0; next }
+	/^[[:space:]]*#/ || !/=/ { next }
+	{
+		name = $0; sub(/[[:space:]]*=.*/, "", name)
+		val = $0; sub(/^[^=]*=[[:space:]]*/, "", val)
+		n = split(val, alts, /[[:space:]]*\|[[:space:]]*/)
+		for (i = 1; i <= n; i++) {
+			if (alts[i] !~ /(KEY|BTN)_[A-Z0-9]+[[:space:]]*$/) continue
+			m = split(alts[i], w, /[[:space:]]+/); mods = ""; key = ""
+			for (j = 1; j <= m; j++) if (w[j] ~ /^</) mods = mods " " w[j]; else if (w[j] != "") key = w[j]
+			## Same modifiers in another order is the same key.
+			k = split(substr(mods, 2), ms, " ")
+			for (a = 2; a <= k; a++) for (b = a; b > 1 && ms[b - 1] > ms[b]; b--) { t = ms[b]; ms[b] = ms[b - 1]; ms[b - 1] = t }
+			combo = ""
+			for (j = 1; j <= k; j++) combo = combo ms[j] " "
+			combo = combo key
+			where[combo] = where[combo] " " sec name; count[combo]++
+		}
+	}
+	END { for (c in count) if (count[c] > 1) print c ":" where[c] }' "${userIni}")"
+if [[ -z "${dupKeys}" ]]; then fCheck "no key is bound twice in wayfire.ini" ok; else fCheck "no key is bound twice in wayfire.ini" fail "${dupKeys//$'\n'/; }"; fi
 
 fSection "File manager and desktop"
 ## LXQtukz has neither for now. pcmanfm-qt was both, until it was dropped.
@@ -237,7 +261,7 @@ done
 if grep -v '^[[:space:]]*#' "${userIni}" | grep -q pcmanfm; then named+=("${userIni##*/}"); fi
 if ((! ${#named[@]})); then fCheck "nothing the session starts names pcmanfm-qt" ok; else fCheck "nothing the session starts names pcmanfm-qt" fail "${named[*]}"; fi
 if ! pgrep -xu "${UID}" pcmanfm-qt >/dev/null; then fCheck "no pcmanfm-qt running" ok; else fCheck "no pcmanfm-qt running" fail "$(pgrep -a -xu "${UID}" pcmanfm-qt | head -n1)"; fi
-## Super+P opens the home folder in the default file manager, here a stand-in
+## Super+E opens the home folder in the default file manager, here a stand-in
 ## that writes down what it was asked to open.
 fEcho "$(fIni command binding_filemanager) -> $(fIni command command_filemanager)"
 opened="${run}/filemanager.opened"
@@ -247,9 +271,9 @@ mkdir -p "${HOME}/.local/share/applications" "${HOME}/.config"
 printf '%s\n' "[Desktop Entry]" "Type=Application" "Name=Stand-in file manager" "Exec=${run}/filemanager.sh %f" "MimeType=inode/directory;" \
 	> "${HOME}/.local/share/applications/lxqtukz-test-files.desktop"
 printf '%s\n' "[Default Applications]" "inode/directory=lxqtukz-test-files.desktop" > "${HOME}/.config/mimeapps.list"
-fKeys super+p
-if fWaitFor test -s "${opened}" && [[ "$(cat "${opened}")" == "${HOME}" ]]; then fCheck "Super+P opens home in the default file manager" ok; else
-	fCheck "Super+P opens home in the default file manager" fail "$(cat "${opened}" 2>/dev/null || echo 'not started')"
+fKeys super+e
+if fWaitFor test -s "${opened}" && [[ "$(cat "${opened}")" == "${HOME}" ]]; then fCheck "Super+E opens home in the default file manager" ok; else
+	fCheck "Super+E opens home in the default file manager" fail "$(cat "${opened}" 2>/dev/null || echo 'not started')"
 fi
 
 fSection "Lock screen"
@@ -329,3 +353,4 @@ fEcho "done"
 ##		- 2026-10-15: Lock screen checks.
 ##		- 2026-10-15: Manifest commit and plugin checks.
 ##		- 2026-10-16: No pcmanfm-qt; Super+P opens the default file manager.
+##		- 2026-11-09: The file manager key is Super+E. No key bound twice.

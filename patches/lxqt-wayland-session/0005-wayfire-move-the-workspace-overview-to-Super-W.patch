@@ -1,0 +1,24 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: t00mietum <73576036+t00mietum@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 13:01:43 -0800
+Subject: [PATCH] wayfire: move the workspace overview to Super+W
+
+Super+E opens the file manager now, and expo had it too, so the
+overview opened instead. Super+W is the overview key on KDE.
+---
+ configurations/lxqt-wayfire.ini | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/configurations/lxqt-wayfire.ini b/configurations/lxqt-wayfire.ini
+index 6116debffd5f2976a7e6812e6b2db80744aecccb..85ca3c76aafe28daa99d8e6be1ca5a4229d15d2b 100644
+--- a/configurations/lxqt-wayfire.ini
++++ b/configurations/lxqt-wayfire.ini
+@@ -286,7 +286,7 @@ activate = <ctrl> <alt> BTN_LEFT
+ 
+ # Show an overview of all workspaces.
+ [expo]
+-toggle = <super> KEY_E
++toggle = <super> KEY_W
+ # Select a workspace.
+ # Workspaces are arranged into a grid of 3 × 3.
+ # The numbering is left to right, line by line.
