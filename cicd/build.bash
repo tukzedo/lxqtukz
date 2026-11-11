@@ -16,7 +16,7 @@
 ##	    lxqtukz-<version>-<target>.tar.gz      one top-level dir, '<version>/'
 ##	    lxqtukz-<version>-<target>-deps.txt    Debian packages it needs at run time
 ##	    lxqtukz-<version>-sha256sums.txt
-##	- Syntax: cicd/build.bash [--here] [--jobs N] [component...] [dogfood]
+##	- Syntax: cicd/build.bash [--here] [--jobs N] [--no-build] [component...] [dogfood]
 ##	    component...  build only these (into the prefix of the last full build, kept
 ##	                  in work/prefix/); default all, from clean.
 ##	                  'settings' is our settings app, source/settings/.
@@ -26,6 +26,9 @@
 ##	                  it is already on. Needs sudo, so it only runs when named.
 ##	                  Then settings.bash dogfood copies the settings app to
 ##	                  ~/.local/bin.
+##	    --no-build    with dogfood, installs the release already in
+##	                  cicd/artifacts/release/, without building it first.
+##	                  cicd.bash's Dogfood step does that, after its own Build.
 ##	History: At bottom of script.
 
 ##	Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
@@ -52,13 +55,14 @@ PREFIX="/opt/lxqtukz/versions/${VERSION}"
 BUILD_DIR="${REPO_ROOT}/work/build/${TARGET}"
 ARTIFACTS="${REPO_ROOT}/cicd/artifacts/release"
 
-declare -i here=0
+declare -i here=0 noBuild=0
 ## Half the cores, so a build leaves the machine usable.
 declare -i jobs=$(( $(nproc) / 2 > 0 ? $(nproc) / 2 : 1 ))
 only=()
 while (($#)); do case "$1" in
 	--here) here=1; shift ;;
 	--jobs) jobs="${2:?}"; shift 2 ;;
+	--no-build) noBuild=1; shift ;;
 	-h|--help) sed -n '/^##\t- Purpose/,/^##\tHistory/p' "${BASH_SOURCE[0]}" | sed 's/^##\t\{0,1\}//'; exit 0 ;;
 	-*) fDie "unknown option: $1" ;;
 	*) only+=("$1"); shift ;;
@@ -75,6 +79,7 @@ if ((dogfood)); then
 	((! ${#only[@]})) || fDie "dogfood needs a full build; partial builds write no release"
 	((! here)) || fDie "dogfood runs on the host after the container build, so not with --here"
 fi
+((! noBuild || dogfood)) || fDie "--no-build is only for dogfood"
 
 ## The settings app is built from this repo, so it is picked out of the list
 ## before the rest is matched against components.conf.
@@ -127,6 +132,11 @@ fStage_dogfood(){
 # Outside: hand off to the container
 
 if ((! here)); then
+	if ((noBuild)); then
+		fStage_dogfood
+		"${REPO_ROOT}/cicd/settings.bash" dogfood
+		exit 0
+	fi
 	command -v docker >/dev/null || fDie "docker (or podman as docker) is required; or use --here on a Debian 13 box"
 	fSection "Build image ${IMAGE}"
 	docker build -q -t "${IMAGE}" "${REPO_ROOT}/cicd/linux" >/dev/null
@@ -166,7 +176,7 @@ fGiveBack(){
 	[[ -n "${HOST_UID:-}" ]] || return 0
 	local dir
 	for dir in "${ARTIFACTS}" "${REPO_ROOT}/work/build" "${REPO_ROOT}/work/cargo" "${REPO_ROOT}/work/prefix"; do
-		[[ ! -e "${dir}" ]] || chown -R "${HOST_UID}:${HOST_GID}" "${dir}"
+		[[ ! -e "${dir}" ]] || chown -R "${HOST_UID}:${HOST_GID:?}" "${dir}"
 	done
 }
 trap fGiveBack EXIT
@@ -247,6 +257,7 @@ fSection "Check for files installed outside the prefix"
 strays="$(find /usr /etc -xdev -newer "${stamp}" -type f 2>/dev/null | grep -v -e '^/etc/ld.so.cache$' -e '/__pycache__/' || true)"
 rm -f "${stamp}"
 if [[ -n "${strays}" ]]; then
+	# shellcheck disable=2001  ## Indents every line, which a parameter expansion can't.
 	echo "${strays}" | sed 's/^/  /'
 	fDie "components installed files outside ${PREFIX}"
 fi
@@ -283,6 +294,7 @@ qml="qt6-wayland qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qt
 locker="gtklock gtklock-userinfo-module accountsservice librsvg2-common swayidle procps"
 # shellcheck disable=2086  ## Word splitting is the point: these are lists.
 deps="$(printf '%s\n' ${deps} ${qml} ${locker} dbus-x11 dbus-bin xwayland swaybg psmisc xdg-desktop-portal | sort -u)"
+# shellcheck disable=2001  ## Indents every line, which a parameter expansion can't.
 echo "${deps}" | sed 's/^/  /'
 
 fSection "Package"
@@ -292,6 +304,7 @@ tar -C "$(dirname "${PREFIX}")" -czf "${ARTIFACTS}/${base}.tar.gz" "${VERSION}"
 echo "${deps}" > "${ARTIFACTS}/${base}-deps.txt"
 ## One sums file per version, covering every target built for it so far.
 ( cd "${ARTIFACTS}" && sha256sum "lxqtukz-${VERSION}-"*.tar.gz "lxqtukz-${VERSION}-"*-deps.txt > "lxqtukz-${VERSION}-sha256sums.txt" )
+# shellcheck disable=2012  ## Shown to a person, never parsed.
 ls -l "${ARTIFACTS}" | sed 's/^/  /'
 
 
@@ -302,3 +315,4 @@ ls -l "${ARTIFACTS}" | sed 's/^/  /'
 ##		- 2026-10-15: The host reads the commit for the manifest.
 ##		- 2026-10-15: dogfood stage.
 ##		- 2026-11-10: dogfood runs settings.bash dogfood too.
+##		- 2026-11-10: --no-build, for cicd.bash's Dogfood step.

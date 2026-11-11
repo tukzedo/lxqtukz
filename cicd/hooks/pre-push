@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+
+#  shellcheck disable=1091  ## 'source is valid here, but shellcheck doesn't know the path to it.'
+#  shellcheck enable=require-variable-braces  ## Every expansion braced: "${var}", not "$var".
+
+##	- Purpose: Run cicd.bash --merge-gate before a push moves main. A push to
+##	  dev, a feature branch or a tag isn't gated.
+##	- A push to main whose changes are all under DOCS_PATHS in
+##	  cicd/config.bash skips the gate. That's judged against what the remote's
+##	  main has, so a new or unknown remote commit runs the gate.
+##	- The gate runs in place, on the checkout. So the commit pushed has to be
+##	  HEAD, with nothing uncommitted, or the push is refused. A gate in a
+##	  second worktree would need a second copy of work/, which is several GB.
+##	- A commit with no cicd/cicd.bash in it, from before the pipeline, isn't
+##	  gated.
+##	- Escape hatch: LXQTUKZ_SKIP_HOOK=1, or `git push --no-verify`.
+##	- Turned on per clone by pointing git at this folder:
+##		git config core.hooksPath cicd/hooks
+##	History: At bottom of script.
+
+##	Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
+##	Licensed under The MIT License (MIT). Full text at:
+##		https://mit-license.org/
+##	SPDX-License-Identifier: MIT
+
+
+set -Eeuo pipefail
+
+case "${LXQTUKZ_SKIP_HOOK:-}" in
+	1) exit 0 ;;
+	''|0) ;;
+	*) printf '\n[ pre-push: LXQTUKZ_SKIP_HOOK is "%s", not 1, so the gate still runs ]\n\n' "${LXQTUKZ_SKIP_HOOK}" >&2 ;;
+esac
+
+## A push from a linked worktree hands the hook GIT_DIR and friends, which
+## would point every git call here at the wrong place.
+for gitVar in $(git rev-parse --local-env-vars 2> /dev/null || true); do unset "${gitVar}"; done
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+root="$(cd "${here}/../.." && pwd)"
+source "${root}/cicd/config.bash"
+
+fSay() { printf '\n[ pre-push: %s ]\n\n' "$*"; }
+
+## True when every file that differs between the two commits is under
+## DOCS_PATHS. A missing commit, or none at all, reads as code, and so does a
+## failed diff.
+fDocsOnly() {   ## fDocsOnly OLD_SHA NEW_SHA
+	local f='' pat='' any=0 doc=0
+	[[ "$1" =~ ^0+$ ]] && return 1
+	git -C "${root}" cat-file -e "$1^{commit}" 2> /dev/null || return 1
+	while IFS= read -r -d '' f; do
+		any=1; doc=0
+		for pat in "${DOCS_PATHS[@]}"; do
+			# shellcheck disable=2053  ## The pattern is meant to glob.
+			if [[ "${f}" == ${pat} ]]; then doc=1; break; fi
+		done
+		((doc)) || return 1
+	done < <(git -C "${root}" diff -z --no-renames --name-only "$1" "$2" || printf '\x01\0')
+	((any))
+}
+
+## stdin gives "<local ref> <local sha> <remote ref> <remote sha>" per ref. All
+## zeros is a delete, with nothing to test.
+gated=()
+while read -r _localRef localSha remoteRef remoteSha; do
+	[[ "${remoteRef}" == refs/heads/main ]] || continue
+	[[ "${localSha}" =~ ^0+$ ]] && continue
+	if fDocsOnly "${remoteSha}" "${localSha}"; then fSay "${localSha:0:12} changes only docs, so the gate isn't run"; continue; fi
+	gated+=("${localSha}")
+done
+((${#gated[@]})) || exit 0
+
+for sha in "${gated[@]}"; do
+	if ! git -C "${root}" cat-file -e "${sha}:cicd/cicd.bash" 2> /dev/null; then
+		fSay "${sha:0:12} has no cicd/cicd.bash, so there's no gate to run on it"
+		continue
+	fi
+	if [[ "$(git -C "${root}" rev-parse HEAD)" != "${sha}" ]]; then
+		fSay "${sha:0:12} isn't the checked-out HEAD; check it out and push again, so the gate runs on it" >&2
+		exit 1
+	fi
+	if [[ -n "$(git -C "${root}" status --porcelain)" ]]; then
+		fSay "the checkout has uncommitted changes, which the gate would test too; commit or stash them and push again" >&2
+		exit 1
+	fi
+	fSay "running the merge gate on ${sha:0:12} before it goes to main"
+	if ! "${root}/cicd/cicd.bash" --merge-gate; then
+		fSay "the merge gate failed on ${sha:0:12}, so the push is refused" >&2
+		exit 1
+	fi
+done
+exit 0
+
+
+##	History:
+##		- 2026-11-10: Created from tukzmon's hook. It gates main only, and in
+##		  place.

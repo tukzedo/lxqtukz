@@ -12,8 +12,12 @@
 ##	    dogfood   build.bash dogfood with docker, sudo, the installer and the
 ##	              updater replaced by stubs that log what they were asked:
 ##	              same version, other version, none installed, in use,
-##	              and settings.bash dogfood after each
-##	- Syntax: cicd/tooling.bash [upstream] [dogfood]
+##	              --no-build, and settings.bash dogfood after each
+##	    cicd      cicd.bash --list under each set of options: which steps
+##	              run, which are off and why, the leak check lengths with
+##	              stand-in checks, and the options it refuses. Then
+##	              hooks/pre-push in a scratch repo with a stand-in cicd.bash
+##	- Syntax: cicd/tooling.bash [upstream] [dogfood] [cicd]
 ##	History: At bottom of script.
 
 ##	Copyright © 2026 t00mietum (CryptogID: ปʬϝღถɔ4რఠΔթะ9ƾǝu)
@@ -33,11 +37,11 @@ trap 'fAbort $? $LINENO "$BASH_COMMAND"' ERR
 
 stages=()
 while (($#)); do case "$1" in
-	upstream|dogfood) stages+=("$1"); shift ;;
+	upstream|dogfood|cicd) stages+=("$1"); shift ;;
 	-h|--help) sed -n '/^##\t- Purpose/,/^##\tHistory/p' "${BASH_SOURCE[0]}" | sed 's/^##\t\{0,1\}//'; exit 0 ;;
 	*) fDie "unknown argument: $1" ;;
 esac; done
-((${#stages[@]})) || stages=(upstream dogfood)
+((${#stages[@]})) || stages=(upstream dogfood cicd)
 
 run="$(mktemp -d "${TMPDIR:-/tmp}/test_lxqtukz-tooling_$(date +%Y%m%d-%H%M%S%2N)_XXXX")"
 fCleanup(){ [[ -d "${run}" && "${run}" == */test_lxqtukz-tooling_* ]] && rm -rf "${run}"; return 0; }
@@ -177,6 +181,15 @@ fStage_dogfood(){
 	kill "${pid}" 2>/dev/null || true; wait "${pid}" 2>/dev/null || true
 	fSame "same version in use: install skipped, settings still copied" "${out}" "${start}"$'\n'"${check}"$'\n'"${settings}"$'\nrc=0'
 
+	fActive "0.0.1"
+	out="$(fDogfood --no-build dogfood)"
+	fSame "--no-build: installs with no build" "${out}" "${install}"$'\n'"${settings}"$'\nrc=0'
+	fActive "${version}"
+	out="$(fDogfood --no-build dogfood)"
+	fSame "--no-build, same version: uninstall, then install" "${out}" "${check}"$'\n'"${uninstall}"$'\n'"${install}"$'\n'"${settings}"$'\nrc=0'
+	out="$(fDogfood --no-build)"
+	fSame "--no-build without dogfood: refused" "${out}" "rc=1"
+
 	fActive ""
 	out="$(fDogfood)"
 	fHas "not named: no install" "${out}" ! "${install}"
@@ -193,6 +206,127 @@ fStage_dogfood(){
 	fHas "no release: no install" "${out}" ! "${install}"
 	fHas "no release: fails" "${out}" "rc=1"
 	fHas "no release: no settings copy" "${out}" ! "${settings}"
+	out="$(fDogfood --no-build dogfood)"
+	fSame "--no-build, no release: fails, nothing run" "${out}" "rc=1"
+}
+
+
+fStage_cicd(){
+	fSection "cicd.bash options"
+	local repo="${run}/cicd/repo" out
+	mkdir -p "${repo}/cicd"
+	cp -r "${REPO_ROOT}/cicd/utility" "${repo}/cicd/"
+	cp "${REPO_ROOT}/cicd/cicd.bash" "${REPO_ROOT}/cicd/config.bash" "${repo}/cicd/"
+	## The plan's Steps lines, joined.
+	fSteps(){ sed -n '/^Steps:$/,/^Off:$/p' <<<"$1" | sed '1d;$d; s/^\t[0-9]*\. //' | paste -sd, -; }
+	## Prints the plan, then the exit status.
+	fList(){ local -i rc=0; "${repo}/cicd/cicd.bash" --list "$@" 2>&1 || rc=$?; echo "rc=${rc}"; }
+	## Prints only the exit status, of a run that has to stop before it starts.
+	fRefused(){ local -i rc=0; "${repo}/cicd/cicd.bash" "$@" > /dev/null 2>&1 || rc=$?; echo "rc=${rc}"; }
+	local all="Remote sync,Format,Lint,Tooling,Settings check,Upstream,Build,Settings app,Installer,Session,Paste,Dogfood"
+	local gate="Lint,Tooling,Settings check,Upstream,Build,Settings app,Installer,Session,Paste"
+
+	out="$(fList)"
+	fSame "default: every step" "$(fSteps "${out}")" "${all}"
+	fHas "default: no screenshots off" "${out}" ! $'\tSettings app screenshots: --quick'
+	out="$(fList --quick)"
+	fSame "--quick: every step" "$(fSteps "${out}")" "${all}"
+	fHas "--quick: no screenshots" "${out}" $'\tSettings app screenshots: --quick'
+	out="$(fList --long)"
+	fSame "--long: every step" "$(fSteps "${out}")" "${all}"
+	fHas "--slow is --long" "$(fList --slow)" "[ lxqtukz cicd: long ]"
+
+	out="$(fList --backlog-run-quick)"
+	fSame "--backlog-run-quick: lint, tooling, settings check" "$(fSteps "${out}")" "Lint,Tooling,Settings check"
+	fHas "--backlog-run-quick: never syncs" "${out}" $'\tRemote sync: --backlog-run-quick never syncs'
+	fHas "--backlog-run-quick: never formats" "${out}" $'\tFormat: --backlog-run-quick never rewrites a file; the Settings check checks rustfmt'
+	fHas "--backlog-run-quick: never dogfoods" "${out}" $'\tDogfood: --backlog-run-quick never dogfoods'
+	fHas "--backlog-run-quick: an area off says so" "${out}" $'\tBuild: not among the areas named'
+	out="$(fList --gate build session)"
+	fSame "--gate with areas: only those" "$(fSteps "${out}")" "Build,Session"
+	fHas "--gate says it's another name" "${out}" "--gate is another name for --backlog-run-quick"
+	out="$(fList --backlog-run-full)"
+	fSame "--backlog-run-full: every check, no sync, format or dogfood" "$(fSteps "${out}")" "${gate}"
+	out="$(fList --merge-gate)"
+	fSame "--merge-gate: the same checks" "$(fSteps "${out}")" "${gate}"
+	fHas "--merge-gate: never dogfoods" "${out}" $'\tDogfood: --merge-gate never dogfoods'
+	out="$(fList --ci)"
+	fSame "--ci is --merge-gate" "$(fSteps "${out}")" "${gate}"
+	fHas "--ci says it's another name" "${out}" "--ci is another name for --merge-gate"
+
+	fHas "--no-container: no installer" "$(fList --no-container)" $'\tInstaller: --no-container, and it runs install.bash as root, so only in a container'
+	fHas "--no-remote says so" "$(fList --no-remote)" $'\tOther hosts: --no-remote'
+	fHas "--no-sync: no sync" "$(fList --no-sync)" $'\tRemote sync: --no-sync'
+	fHas "--message goes unused" "$(fList -m hello)" $'\tPublish: not part of this pipeline, so --message goes unused'
+	fHas "no leak checks yet" "$(fList --leakcheck)" $'\tLeak checks: none yet, so --leakcheck changes nothing'
+	out="$(fList --backlog-run-quick upstream)"
+	fHas "no check left: --list says it would fail" "${out}" "Fails: every check is off, so this run would check nothing"
+
+	fSame "no check left: refused" "$(fRefused --backlog-run-quick upstream)" "rc=2"
+	fSame "2 runs: refused" "$(fRefused --quick --long)" "rc=2"
+	fSame "--quick and --ci: refused" "$(fRefused --quick --ci)" "rc=2"
+	fSame "an unknown area: refused" "$(fRefused --backlog-run-quick nope)" "rc=2"
+	fSame "an unknown option: refused" "$(fRefused --nope)" "rc=2"
+	fSame "--leakcheck with --no-leakcheck: refused" "$(fRefused --leakcheck --no-leakcheck)" "rc=2"
+	fSame "a hands-off run with --message: refused" "$(fRefused --merge-gate -m hello)" "rc=2"
+	fSame "-m with no message: refused" "$(fRefused -m)" "rc=2"
+	fSame "--help: exit 0" "$(fRefused --help)" "rc=0"
+
+	## Stand-in leak checks, one of each length.
+	sed -i 's/^LEAK_CHECKS=()$/LEAK_CHECKS=("Fast|fStepFast|fast" "Slow|fStepSlow|slow" "Hours|fStepHours|hours")/' "${repo}/cicd/config.bash"
+	grep -qF '"Fast|fStepFast|fast"' "${repo}/cicd/config.bash" || fDie "config.bash has no LEAK_CHECKS=() line to fill in"
+	fLeaks(){ fSteps "$(fList "$@")" | tr , '\n' | { grep -xE 'Fast|Slow|Hours' || true; } | paste -sd, -; }
+	fSame "leak checks, default: fast and slow" "$(fLeaks)" "Fast,Slow"
+	fSame "leak checks, --quick: fast" "$(fLeaks --quick)" "Fast"
+	fSame "leak checks, --long: all" "$(fLeaks --long)" "Fast,Slow,Hours"
+	fSame "leak checks, --quick --leakcheck: all" "$(fLeaks --quick --leakcheck)" "Fast,Slow,Hours"
+	fSame "leak checks, --long --no-leakcheck: none" "$(fLeaks --long --no-leakcheck)" ""
+	fSame "leak checks, --backlog-run-quick: fast" "$(fLeaks --backlog-run-quick)" "Fast"
+	fSame "leak checks, --backlog-run-quick lint: none" "$(fLeaks --backlog-run-quick lint)" ""
+	fSame "leak checks, --backlog-run-quick slow: that one" "$(fLeaks --backlog-run-quick slow)" "Slow"
+	fSame "leak checks, --merge-gate: fast and slow" "$(fLeaks --merge-gate)" "Fast,Slow"
+	fHas "leak checks, an off one says why" "$(fList --quick)" $'\tSlow: a slow leak check, so not in --quick without --leakcheck'
+
+	fSection "hooks/pre-push"
+	local hook="${run}/cicd/hook" log="${run}/cicd/gate.log" c1 c2 c3 zero="0000000000000000000000000000000000000000"
+	mkdir -p "${hook}/cicd/hooks"
+	cp "${REPO_ROOT}/cicd/config.bash" "${hook}/cicd/"
+	cp "${REPO_ROOT}/cicd/hooks/pre-push" "${hook}/cicd/hooks/"
+	printf '#!/usr/bin/env bash\necho "gate $*" >> "%s"\nexit "${GATE_RC:-0}"\n' "${log}" > "${hook}/cicd/cicd.bash"
+	chmod 755 "${hook}/cicd/cicd.bash"
+	echo one > "${hook}/code.txt"; echo one > "${hook}/README.md"
+	fGit init -q "${hook}"
+	fGit -C "${hook}" add -A; fGit -C "${hook}" commit -q -m one; c1="$(git -C "${hook}" rev-parse HEAD)"
+	echo two > "${hook}/README.md"; mkdir -p "${hook}/project"; echo two > "${hook}/project/backlog.md"
+	fGit -C "${hook}" add -A; fGit -C "${hook}" commit -q -m two; c2="$(git -C "${hook}" rev-parse HEAD)"
+	echo three > "${hook}/code.txt"
+	fGit -C "${hook}" add -A; fGit -C "${hook}" commit -q -m three; c3="$(git -C "${hook}" rev-parse HEAD)"
+	## Prints the stand-in gate's log, then the hook's exit status.
+	fHook(){ ## local-sha remote-ref remote-sha
+		: > "${log}"
+		local -i rc=0
+		printf 'refs/heads/x %s %s %s\n' "$1" "$2" "$3" | (cd "${hook}" && "${hook}/cicd/hooks/pre-push" origin url) > "${run}/cicd/hook.out" 2>&1 || rc=$?
+		cat "${log}"; echo "rc=${rc}"
+	}
+	fSame "docs only to main: no gate" "$(fHook "${c2}" refs/heads/main "${c1}")" "rc=0"
+	fSame "code to dev: no gate" "$(fHook "${c3}" refs/heads/dev "${c2}")" "rc=0"
+	fSame "code to main: the gate" "$(fHook "${c3}" refs/heads/main "${c2}")" $'gate --merge-gate\nrc=0'
+	fSame "a new main: the gate" "$(fHook "${c3}" refs/heads/main "${zero}")" $'gate --merge-gate\nrc=0'
+	fSame "a remote commit not here: the gate" "$(fHook "${c3}" refs/heads/main "${c1/#?/f}")" $'gate --merge-gate\nrc=0'
+	fSame "a delete of main: no gate" "$(fHook "${zero}" refs/heads/main "${c3}")" "rc=0"
+	fSame "a failed gate: refused" "$(GATE_RC=1 fHook "${c3}" refs/heads/main "${c2}")" $'gate --merge-gate\nrc=1'
+	fSame "skip hook: no gate" "$(LXQTUKZ_SKIP_HOOK=1 fHook "${c3}" refs/heads/main "${c2}")" "rc=0"
+	fSame "skip hook not 1: the gate" "$(LXQTUKZ_SKIP_HOOK=yes fHook "${c3}" refs/heads/main "${c2}")" $'gate --merge-gate\nrc=0'
+	echo dirty > "${hook}/code.txt"
+	fSame "uncommitted changes: refused, no gate" "$(fHook "${c3}" refs/heads/main "${c2}")" "rc=1"
+	fGit -C "${hook}" checkout -q -- code.txt
+	fGit -C "${hook}" checkout -q "${c2}"
+	fSame "not HEAD: refused, no gate" "$(fHook "${c3}" refs/heads/main "${c1}")" "rc=1"
+	fGit -C "${hook}" checkout -q "${c1}"
+	git -C "${hook}" rm -q --cached cicd/cicd.bash
+	fGit -C "${hook}" commit -q -m "no pipeline"
+	echo four > "${hook}/code.txt"; fGit -C "${hook}" commit -q -am four
+	fSame "no cicd.bash in the commit: no gate" "$(fHook "$(git -C "${hook}" rev-parse HEAD)" refs/heads/main "${c1}")" "rc=0"
 }
 
 
@@ -204,3 +338,5 @@ fEcho "done: ${stages[*]}"
 ##	History:
 ##		- 2026-10-15: Created.
 ##		- 2026-11-10: dogfood checks the settings.bash dogfood call.
+##		- 2026-11-10: The cicd stage: cicd.bash's options, and the pre-push hook.
+##		- 2026-11-10: dogfood checks build.bash --no-build.

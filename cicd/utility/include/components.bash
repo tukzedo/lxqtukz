@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+#  shellcheck disable=2034  ## 'appears unused.' The arrays are read by the scripts that source this.
+
 ##	- Purpose: Reads upstream/components.conf into arrays, so every script
 ##	  agrees on what a component is.
 ##	- After fComponents_Load:
