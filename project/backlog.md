@@ -104,28 +104,6 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 		- Don't move to a buildx builder of the project's own instead. shcl tried that on 2026-11-02. A cold build of a 2 GB image took 299 s against 266 s on the default builder, and the builder kept a second 3 GB copy of the layers for a week. shcl is going back to the default builder. (JC, me)
 	- Estimated effort: Low
 
-- Pre-next-cut: Updates to CICD script flags (do next)
-	- ID: 2026101911150200
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261019-111500
-	- Opened by: t00mietum
-	- Related IDs: 2026101911150204
-	- Requirements:
-		- Rename `--ci` to `--gate`.
-		- `--quick`:
-			- Runs whatever linting, validation, and testing steps are very quick.
-			- Cross-compiles whatever is fast. E.g. maybe skip slow arm64.
-			- Skips anything requiring an external host.
-		- No flags by default does everything.
-		- The other existing flags can stay.
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- 2026-10-24: the CICD reset's shared flags replace this list. The default run, under about an hour, `--quick` in about 10 minutes, `--long` with `--slow` as another name, `--leakcheck`, `--no-leakcheck`, `--backlog-run-quick [<area>...]`, `--backlog-run-full`, `--merge-gate`, `--no-container`, `--no-remote`, `--no-sync`, `--keep-temp`, `--list`, `--help`, `--quiet`, and `--message`.
-			- `--gate` turns into another name for `--backlog-run-quick`, and `--ci` for `--merge-gate`, which supersedes the rename above.
-			- The backlog and merge gate runs never dogfood, publish, commit, push, install, sync, rewrite a tracked file, or prompt. A round never dogfoods.
-			- The pre-push hook runs `--merge-gate` on a push to `main` only. A push to `dev` or a feature branch isn't gated, and a docs-only push to `main` skips it, with the docs paths in one place the hook reads.
-
 - Pre-next-cut: Builds clean up stale artifacts and side effects
 	- ID: 2026101911150202
 	- Type: Enhancement
@@ -142,22 +120,6 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 			- Older image tags go once a newer one has passed, keeping the current tag and the one before it. Then `docker builder prune -f --filter until=168h`.
 			- Nothing without the project's label is touched. The end of the run says what it removed and about what that freed.
 
-- Pre-next-cut: CICD `--leakcheck` and `--no-leakcheck`
-	- ID: 2026101911150204
-	- Type: Enhancement
-	- Status: Queued
-	- Priority|Severity: High
-	- Opened: 20261019-111500
-	- Opened by: t00mietum
-	- Parent ID: 2026101714414452
-	- Related IDs: 2026101911150200
-	- Requirements:
-		- CICD has both `--leakcheck` and `--no-leakcheck`.
-			- `--leakcheck` is useful to add back in for `--quick`.
-			- `--no-leakcheck` is useful to exclude from the default, or with `--quiet`.
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- 2026-10-24: per the CICD reset, leak checks come in 3 lengths by measured time. Fast ones run in every run, `--quick` included. Slow ones run in the default run and `--long`, and ones that take hours only in `--long`. `--leakcheck` adds every one to any run, and `--no-leakcheck` takes every one out, fast ones included.
-
 - CICD reset: containers
 	- ID: 2026102416315759
 	- Type: Task
@@ -171,6 +133,8 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 		- The build and the test scripts already run in the pinned Debian 13 images. What's left is a missing docker.
 		- A missing docker never fails a run. A step that can run safely on the host does, with one line, and the rest show as `SKIP`. `build.bash` stops with an error now.
 		- `--no-container` runs on the host on purpose, as the shared name for `build.bash --here`.
+	- Progress log:
+		- 20261110: `cicd/cicd.bash` runs the scripts with `--here` under `--no-container`, or when docker is missing or doesn't answer, and says so in one line. The installer checks are off with `--no-container`, and skipped with a warning with no docker. Left: the scripts run alone still stop with no docker.
 
 - CICD reset: CPU and priority
 	- ID: 2026102416315760
@@ -185,6 +149,8 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 		- `build.bash` and `settings.bash` take half the CPUs. Add the busy check: a quarter when the 1-minute load is over half the CPU count, checked at the start and before each step. The heavy steps, such as the leak checks, use a quarter, busy or not.
 		- The counts are worked out in one place for every script, and passed to every tool that runs in parallel.
 		- Everything runs under `nice -n 19`, plus `ionice -c 3`. Containers get `--cpus` and `--cpu-shares 256`, and `nice` inside.
+	- Progress log:
+		- 20261110: `cicd/cicd.bash` runs under `nice -n 19` and `ionice -c 3`, works out the jobs with the busy check before each step, and passes them to `build.bash --jobs`. `CICD_MAX_JOBS` caps them. Left: the scripts' containers get no `--cpus` or `--cpu-shares`, and `settings.bash` and the scripts run alone take their own count.
 
 - CICD reset: step output
 	- ID: 2026102416315761
@@ -198,6 +164,8 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
 		- Each step prints the shared lines: a 79 character rule, `[ YYYYmmDD-HHMMSS.NN: Step 1 of 9; Starting Build ]`, its output, then `PASS Build` or `FAIL Build` in the same form. Now the scripts print a section title under a 74 character rule.
 		- Steps turned off aren't counted, and the first section lists them with the flag or reason.
+	- Progress log:
+		- 20261110: `cicd/cicd.bash` prints the shared step lines, and lists the steps that are off with the reason. Left: inside a step, the scripts still print their own 74 character sections.
 
 - CICD reset: a test for every Done item
 	- ID: 2026102416315762
@@ -238,6 +206,8 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 		- A trap removes it at the end, on failure and Ctrl+C too. `--keep-temp` keeps it and prints its path.
 		- Each run writes `run.pid` there, and removes the project's own folders older than 2 days whose process is gone.
 		- Every `rm -rf` in the scripts goes through a copy of the shared guard. One that removes something outside a temp root, such as the prefix or the installer's version folders, uses a guard that names the one parent it may remove under. The file list is in the private notes.
+	- Progress log:
+		- 20261110: a `cicd/cicd.bash` run makes its folder this way, with `run.pid`, the trap, `--keep-temp`, the 2-day sweep and the guard. The scripts it runs make their `mktemp` folders inside it, through `TMPDIR`. Left: the scripts run alone, and their own `rm -rf` lines.
 
 - CICD reset: version line
 	- ID: 2026102416315765
@@ -265,6 +235,8 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 		- Lint output, shellcheck and clippy, rotated into `cicd/artifacts/lint/`, with a `--check` that prints only what's new.
 		- Lint and audit tools pinned in one place the scripts read.
 		- Remote sync first, before anything is built.
+	- Progress log:
+		- 20261110: shellcheck's output goes to `cicd/artifacts/lint/`, rotated, and `cicd/utility/lint-report.bash --check` prints only what's new. The tool pins are in `cicd/config.bash`. `cicd/cicd.bash` syncs first. Left: clippy's output is in the Settings check, not the lint log, and markdownlint isn't installed on this box.
 
 - Tukzedo-Linux, LXQtukz, and tukzdesk should use shcl for config files (latest is v3.0.0-beta1). Named *.shcl.
 	- ID: 2026111015271654
@@ -390,6 +362,8 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 	- Parent ID: 2026101221490203
 	- Note: the pipeline and pre-push hook should run the content scrub only if it's present.
 	- 2026-10-24: the pre-push merge gate here follows 2026101911150200, per the CICD reset: `--merge-gate`, on a push to `main` only.
+	- Progress log:
+		- 20261110: the stage engine, `cicd/config.bash` and the pre-push merge gate are in, from tukzmon's pipeline, which is newer than nemo-anywhere's. `config.bash` has no settings for `upstream.bash` and `build.bash` yet. Left: the version-bump guard, `release.bash`, `changelog-notes.bash`, and backup and publish.
 
 - Publish v0.1.0-alpha1 as a prerelease, and install it with `--channel dev` on a clean Debian 13.
 	- ID: 2026101221490221
@@ -735,6 +709,67 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 	- Verified: 20261110, a full build from clean. `cicd/session.bash` passes all 20 checks, the new one included, and `cicd/installer.bash` all 23. In VM `tkz_deb`, a first login with no user config shows the menu, desktops, quick launch, taskbar and clock.
 	- Commit: 618fcd9
 	- Closed: 20261110
+
+- Pre-next-cut: Updates to CICD script flags (do next)
+	- ID: 2026101911150200
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261019-111500
+	- Opened by: t00mietum
+	- Related IDs: 2026101911150204
+	- Requirements:
+		- Rename `--ci` to `--gate`.
+		- `--quick`:
+			- Runs whatever linting, validation, and testing steps are very quick.
+			- Cross-compiles whatever is fast. E.g. maybe skip slow arm64.
+			- Skips anything requiring an external host.
+		- No flags by default does everything.
+		- The other existing flags can stay.
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- 2026-10-24: the CICD reset's shared flags replace this list. The default run, under about an hour, `--quick` in about 10 minutes, `--long` with `--slow` as another name, `--leakcheck`, `--no-leakcheck`, `--backlog-run-quick [<area>...]`, `--backlog-run-full`, `--merge-gate`, `--no-container`, `--no-remote`, `--no-sync`, `--keep-temp`, `--list`, `--help`, `--quiet`, and `--message`.
+			- `--gate` turns into another name for `--backlog-run-quick`, and `--ci` for `--merge-gate`, which supersedes the rename above.
+			- The backlog and merge gate runs never dogfood, publish, commit, push, install, sync, rewrite a tracked file, or prompt. A round never dogfoods.
+			- The pre-push hook runs `--merge-gate` on a push to `main` only. A push to `dev` or a feature branch isn't gated, and a docs-only push to `main` skips it, with the docs paths in one place the hook reads.
+	- Progress log:
+		- 20261110: `cicd/cicd.bash` takes the shared flags, on tukzmon's engine. Its steps are the scripts already in `cicd/`, which keep their own containers. `cicd/config.bash` holds the tool pins, the docs paths and the leak check list.
+		- 20261110: `cicd/hooks/pre-push` runs `--merge-gate` on a push to `main` only, and skips a push that changes only docs. Turned on in this clone with `core.hooksPath`.
+		- 20261110: `cicd/build.bash --no-build dogfood` installs the release without building it again, for the Dogfood step after the run's own Build.
+	- Decisions:
+		- `--quick` only drops the settings app's screenshots. The full build is the native compile, which the 10 minutes don't count, and each check of the release takes under 20 s. (me)
+		- `--backlog-run-quick` runs lint, tooling and the settings check, in about 11 s. A worker names the other areas when it needs them. (me)
+		- The hook runs the gate in place. It refuses a push of a commit that isn't HEAD, or with uncommitted changes, since a second worktree would need its own `work/` of several GB. (me)
+		- `--no-container`, or a box with no docker, runs the scripts with `--here`. The installer checks need a container, since they run `install.bash` as root. (me)
+	- Test case: `cicd/tooling.bash cicd`, 55 checks: each mode's steps and off lines, the other names, the refusals, the leak check lengths, and the hook. `cicd/tooling.bash dogfood` for `--no-build`.
+	- Verified: 20261110, `cicd/tooling.bash` passes. With Dogfood back in the hands-off runs and the hook's main-only test taken out, 8 checks fail. Without the `--no-build` branch, 3 fail.
+	- Verified: 20261110, `cicd/cicd.bash --backlog-run-quick` (3 steps, 11 s) and `--backlog-run-full` (9 steps, 27m 32s, of which the build is 25m 47s) pass. No tracked file changed, and no container or temp folder was left.
+	- Not run as part of a `cicd.bash` run: Remote sync, Format and Dogfood. `cicd/settings.bash fmt` alone passed and changed nothing.
+	- Commit: 4c3e3a6
+	- Closed: 20261110-174500
+	- Acceptance signoff: Self-closed: the pipeline's own checks and 2 real runs pass.
+
+- Pre-next-cut: CICD `--leakcheck` and `--no-leakcheck`
+	- ID: 2026101911150204
+	- Type: Enhancement
+	- Status: Done
+	- Priority|Severity: High
+	- Opened: 20261019-111500
+	- Opened by: t00mietum
+	- Parent ID: 2026101714414452
+	- Related IDs: 2026101911150200
+	- Requirements:
+		- CICD has both `--leakcheck` and `--no-leakcheck`.
+			- `--leakcheck` is useful to add back in for `--quick`.
+			- `--no-leakcheck` is useful to exclude from the default, or with `--quiet`.
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- 2026-10-24: per the CICD reset, leak checks come in 3 lengths by measured time. Fast ones run in every run, `--quick` included. Slow ones run in the default run and `--long`, and ones that take hours only in `--long`. `--leakcheck` adds every one to any run, and `--no-leakcheck` takes every one out, fast ones included.
+	- Progress log:
+		- 20261110: `cicd/cicd.bash` takes both. Each leak check's length in `cicd/config.bash` says which runs take it. There are no leak checks yet. Those are the children of 2026101714414452.
+	- Test case: `cicd/tooling.bash cicd`, the leak check lines, with a stand-in check of each length.
+	- Verified: 20261110, they pass. The default run takes the fast and slow ones, `--quick` the fast one, `--long` all 3, `--leakcheck` adds all 3, `--no-leakcheck` takes all 3 out, and `--backlog-run-quick` goes by area.
+	- Commit: 4c3e3a6
+	- Closed: 20261110-174500
+	- Acceptance signoff: Self-closed: checked by the same tests as 2026101911150200.
 
 - The backlight helper's polkit action is in the prefix, where polkit never reads it. Brightness keys may ask for an admin password.
 	- ID: 2026101421433387
