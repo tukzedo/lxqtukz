@@ -237,6 +237,19 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 		- Remote sync first, before anything is built.
 	- Progress log:
 		- 20261110: shellcheck's output goes to `cicd/artifacts/lint/`, rotated, and `cicd/utility/lint-report.bash --check` prints only what's new. The tool pins are in `cicd/config.bash`. `cicd/cicd.bash` syncs first. Left: clippy's output is in the Settings check, not the lint log, and markdownlint isn't installed on this box.
+			- 20261116: markdownlint 0.49.1 is installed on b28l now. Its first run fails, filed as 2026111616220500.
+
+- Lint fails on markdownlint
+	- ID: 2026111616220500
+	- Type: Bug
+	- Status: Queued
+	- Priority|Severity: Avg
+	- Opened: 20261116-162205
+	- Opened by: t00mietum
+	- Related IDs: 2026102416315766
+	- Incorrect behavior: `cicd/cicd.bash --backlog-run-quick lint` fails on markdownlint. `contributing.md` has no disable header, so tab indents and its own spacing fail, along with one bad link fragment. `project/design_docs/20260930-145721_settings-dialog.md` has an inline `<tab>` at line 61.
+	- Expected behavior: Lint passes. Fix the real errors, and disable only the rules the house style breaks.
+	- Estimated effort: Low
 
 - Tukzedo-Linux, LXQtukz, and tukzdesk should use shcl for config files (latest is v3.0.0-beta1). Named *.shcl.
 	- ID: 2026111015271654
