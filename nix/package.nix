@@ -15,7 +15,7 @@ symlinkJoin {
 
   meta = {
     description = "LXQt desktop on the Wayfire compositor";
-    homepage = "https://github.com/t00mietum/lxqtukz";
+    homepage = "https://github.com/tukzedo/lxqtukz";
     license = lib.licenses.lgpl21Plus;
     platforms = lib.platforms.linux;
   };

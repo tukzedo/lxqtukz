@@ -15,7 +15,7 @@
 ##	  and the system rebuilt (see the module's services.lxqtukz options).
 ##	- Settings: /etc/xdg/lxqtukz/update.conf (AUTO_UPDATE, CHANNEL, PIN, KEEP).
 ##	- Syntax:
-##	  bash <(curl -fsSL https://raw.githubusercontent.com/t00mietum/lxqtukz/main/install.bash) [options]
+##	  bash <(curl -fsSL https://raw.githubusercontent.com/tukzedo/lxqtukz/main/install.bash) [options]
 ##	  lxqtukz-update [options]
 ##	    (no options)            install, or update to the newest release on the channel
 ##	    --to VERSION            install and switch to exactly this version
@@ -37,7 +37,7 @@
 
 set -Eeuo pipefail
 
-REPO="t00mietum/lxqtukz"
+REPO="tukzedo/lxqtukz"
 ROOT="/opt/lxqtukz"
 STATE_DIR="/var/lib/lxqtukz"
 HISTORY_FILE="${STATE_DIR}/history"

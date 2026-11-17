@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.88"
 description = "LXQtukz Settings, one app for the desktop's settings"
 license = "LGPL-2.1-or-later"
-repository = "https://github.com/t00mietum/lxqtukz"
+repository = "https://github.com/tukzedo/lxqtukz"
 publish = false
 
 [dependencies]

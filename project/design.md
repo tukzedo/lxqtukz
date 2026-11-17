@@ -225,7 +225,7 @@ Some components keep settings outside `LXQt::Settings` and aren't covered yet: l
 
 - `pkgs.lxqtukz` joins every component into one prefix with `symlinkJoin`, and runs the same `stage-prefix.bash`. So the layout and session launcher match Debian's.
 
-- Versions are flake input revisions. A system flake follows `github:t00mietum/lxqtukz`, and `main` only gets releases, so that means "latest release".
+- Versions are flake input revisions. A system flake follows `github:tukzedo/lxqtukz`, and `main` only gets releases, so that means "latest release".
 
 - nixpkgs' own patches for a component are kept only while the nixpkgs version matches our pin. After that they're probably stale, and dropping them beats failing to apply them.
 
@@ -243,7 +243,7 @@ Some components keep settings outside `LXQt::Settings` and aren't covered yet: l
 
 - Prune keeps `KEEP` versions, 3 by default. It always keeps the active version, the rollback target, and any version a running process still has mapped.
 
-- On NixOS it runs `nix flake lock --override-input lxqtukz github:t00mietum/lxqtukz/v<version>` on the system flake, then `nixos-rebuild boot`, or `switch` if configured.
+- On NixOS it runs `nix flake lock --override-input lxqtukz github:tukzedo/lxqtukz/v<version>` on the system flake, then `nixos-rebuild boot`, or `switch` if configured.
 
 - `--auto` is what the timer runs. It does nothing when `AUTO_UPDATE=no`, and never asks anything.
 

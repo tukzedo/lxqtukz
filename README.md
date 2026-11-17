@@ -7,7 +7,7 @@
 
 ![Made with](https://img.shields.io/badge/Made%20with-C%2B%2B%20%2F%20Qt6-1f425f.svg)
 ![License: LGPL v2.1+](https://img.shields.io/badge/License-LGPL%20v2.1%2B-blue.svg)
-[![Release](https://img.shields.io/github/v/release/t00mietum/lxqtukz?include_prereleases&label=release)](https://github.com/t00mietum/lxqtukz/releases)
+[![Release](https://img.shields.io/github/v/release/tukzedo/lxqtukz?include_prereleases&label=release)](https://github.com/tukzedo/lxqtukz/releases)
 ![Lifecycle](https://img.shields.io/badge/Lifecycle-Alpha-orange)
 ![Support](https://img.shields.io/badge/Support-Maintained-brightgreen)
 
@@ -77,7 +77,7 @@ Alpha. The repository, upstream tracking, patch tooling, installer, and updater 
 Run this. It downloads the build for your machine and checks its checksum, then installs the runtime packages it needs with apt. It says what it's about to do first, and waits for a yes.
 
 ~~~bash
-bash <(curl -fsSL https://raw.githubusercontent.com/t00mietum/lxqtukz/main/install.bash)  [--to VERSION]  [--channel stable|dev]
+bash <(curl -fsSL https://raw.githubusercontent.com/tukzedo/lxqtukz/main/install.bash)  [--to VERSION]  [--channel stable|dev]
 ~~~
 
 Then pick "LXQtukz" in your display manager's session menu.
@@ -90,7 +90,7 @@ Add it to your system flake:
 
 ~~~nix
 {
-  inputs.lxqtukz.url = "github:t00mietum/lxqtukz";
+  inputs.lxqtukz.url = "github:tukzedo/lxqtukz";
   inputs.lxqtukz.inputs.nixpkgs.follows = "nixpkgs";
 
   outputs = { nixpkgs, lxqtukz, ... }: {
@@ -142,7 +142,7 @@ A stock LXQt on the same machine keeps using `~/.config/lxqt/`, untouched.
 You need git, bash, and Docker (or Podman with a Docker alias) for release builds. Everything else is fetched.
 
 ~~~bash
-git clone https://github.com/t00mietum/lxqtukz.git
+git clone https://github.com/tukzedo/lxqtukz.git
 cd lxqtukz
 cicd/upstream.bash status        # pins, patch counts, newer upstream releases
 cicd/upstream.bash apply liblxqt # upstream source plus our patches, in work/src/liblxqt

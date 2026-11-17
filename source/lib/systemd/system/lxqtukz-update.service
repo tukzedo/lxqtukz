@@ -1,6 +1,6 @@
 [Unit]
 Description=LXQtukz automatic update
-Documentation=https://github.com/t00mietum/lxqtukz
+Documentation=https://github.com/tukzedo/lxqtukz
 Wants=network-online.target
 After=network-online.target
 
