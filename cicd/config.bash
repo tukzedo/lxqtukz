@@ -20,7 +20,8 @@ projectName="lxqtukz"
 ## "name|version|command that prints it". A box with something else gets a
 ## warning, so a lint result that moved can be traced to the tool.
 TOOL_PINS=(
-	"shellcheck|0.10.0|shellcheck --version"
+	## Pinned in cicd/linux/Dockerfile.test too.
+	"shellcheck|0.11.0|shellcheck --version"
 	## markdownlint-cli, the `markdownlint` command, not markdownlint-cli2.
 	"markdownlint|0.49.1|markdownlint --version"
 )
@@ -56,3 +57,4 @@ HEAVY_STEPS=()
 
 ##	History:
 ##		- 2026-11-10: Created, from tukzmon's.
+##		- 2026-11-16: shellcheck pin to 0.11.0.
