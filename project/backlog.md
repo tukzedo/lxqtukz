@@ -242,7 +242,7 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 - Lint fails on markdownlint
 	- ID: 2026111616220500
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Priority|Severity: Avg
 	- Opened: 20261116-162205
 	- Opened by: t00mietum
@@ -250,6 +250,8 @@ Sorted per the notes in [Template](#template). A milestone is a Task, and its it
 	- Incorrect behavior: `cicd/cicd.bash --backlog-run-quick lint` fails on markdownlint. `contributing.md` has no disable header, so tab indents and its own spacing fail, along with one bad link fragment. `project/design_docs/20260930-145721_settings-dialog.md` has an inline `<tab>` at line 61.
 	- Expected behavior: Lint passes. Fix the real errors, and disable only the rules the house style breaks.
 	- Estimated effort: Low
+	- Progress log:
+		- 20261116: Fixed. `contributing.md` disables MD007 and MD010 for its tab indents, and got blank lines where they were missing. The bad link is plain text now, since its heading is commented out. The design doc escapes its `<`. Lint passes.
 
 - Tukzedo-Linux, LXQtukz, and tukzdesk should use shcl for config files (latest is v3.0.0-beta1). Named *.shcl.
 	- ID: 2026111015271654
